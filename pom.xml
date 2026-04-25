@@ -6,13 +6,14 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>4.0.5</version>
-        <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>ru.usernamedrew</groupId>
     <artifactId>edutask-platform</artifactId>
     <version>0.0.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
     <name>edutask-platform</name>
-    <description>edutask-platform</description>
+    <description>Сервис генерации и поддержки банка заданий по программированию для школьников</description>
+
     <url/>
     <licenses>
         <license/>
@@ -26,19 +27,25 @@
         <tag/>
         <url/>
     </scm>
+
+    <modules>
+        <module>edutask-common</module>
+        <module>edutask-core</module>
+        <module>edutask-gateway</module>
+        <module>edutask-llm-worker</module>
+    </modules>
+
     <properties>
+        <!-- ================== Base project property ================== -->
         <java.version>21</java.version>
+        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
     </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 
