@@ -1,0 +1,235 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE user_profile (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    keycloak_id VARCHAR(255) NOT NULL UNIQUE,
+    role VARCHAR(10) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_user_profile_role
+        CHECK (role IN ('STUDENT', 'TEACHER', 'ADMIN'))
+);
+
+CREATE TABLE task (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(255) NOT NULL,
+    statement TEXT NOT NULL,
+    input_format TEXT,
+    output_format TEXT,
+    difficulty VARCHAR(10) NOT NULL,
+    author_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_task_author
+        FOREIGN KEY (author_id) REFERENCES user_profile (id),
+    CONSTRAINT chk_task_difficulty
+        CHECK (difficulty IN ('EASY', 'MEDIUM', 'HARD'))
+);
+
+CREATE TABLE test_case (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id UUID NOT NULL,
+    input_data TEXT NOT NULL,
+    expected_output TEXT NOT NULL,
+    is_hidden BOOLEAN NOT NULL DEFAULT false,
+    points INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_test_case_task
+        FOREIGN KEY (task_id) REFERENCES task (id) ON DELETE CASCADE,
+    CONSTRAINT chk_test_case_points
+        CHECK (points >= 0),
+);
+
+CREATE TABLE programming_language (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    judge0_language_id INTEGER NOT NULL,
+);
+
+CREATE TABLE task_language (
+    task_id UUID NOT NULL,
+    language_id UUID NOT NULL,
+
+    PRIMARY KEY (task_id, language_id),
+
+    CONSTRAINT fk_task_language_task
+        FOREIGN KEY (task_id) REFERENCES task (id) ON DELETE CASCADE,
+    CONSTRAINT fk_task_language_language
+        FOREIGN KEY (language_id) REFERENCES programming_language (id)
+);
+
+CREATE TABLE topic (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    parent_id UUID,
+
+    CONSTRAINT fk_topic_parent
+        FOREIGN KEY (parent_id) REFERENCES topic (id) ON DELETE SET NULL
+);
+
+CREATE TABLE task_topic (
+    task_id UUID NOT NULL,
+    topic_id UUID NOT NULL,
+
+    PRIMARY KEY (task_id, topic_id),
+
+    CONSTRAINT fk_task_topic_task
+        FOREIGN KEY (task_id) REFERENCES task (id) ON DELETE CASCADE,
+    CONSTRAINT fk_task_topic_topic
+        FOREIGN KEY (topic_id) REFERENCES topic (id) ON DELETE CASCADE
+);
+
+CREATE TABLE submission (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    task_id UUID NOT NULL,
+    language_id UUID NOT NULL,
+    source_code TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    passed_tests INTEGER NOT NULL DEFAULT 0,
+    total_tests INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_submission_user
+        FOREIGN KEY (user_id) REFERENCES user_profile (id),
+    CONSTRAINT fk_submission_task
+        FOREIGN KEY (task_id) REFERENCES task (id),
+    CONSTRAINT fk_submission_language
+        FOREIGN KEY (language_id) REFERENCES programming_language (id),
+    CONSTRAINT chk_submission_status
+        CHECK (status IN ('PENDING', 'RUNNING', 'ACCEPTED', 'WRONG_ANSWER', 'ERROR')),
+    CONSTRAINT chk_submission_score
+        CHECK (score >= 0),
+    CONSTRAINT chk_submission_tests_count
+        CHECK (passed_tests >= 0 AND total_tests >= 0 AND passed_tests <= total_tests),
+);
+
+CREATE TABLE submission_test_result (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    submission_id UUID NOT NULL,
+    test_case_id UUID NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    actual_output TEXT,
+    stderr TEXT,
+    compile_output TEXT,
+    error_message TEXT,
+    judge_token VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_submission_test_result_submission
+        FOREIGN KEY (submission_id) REFERENCES submission (id) ON DELETE CASCADE,
+    CONSTRAINT fk_submission_test_result_test_case
+        FOREIGN KEY (test_case_id) REFERENCES test_case (id),
+    CONSTRAINT chk_submission_test_result_status
+        CHECK (status IN (
+            'ACCEPTED',
+            'WRONG_ANSWER',
+            'TIME_LIMIT',
+            'MEMORY_LIMIT',
+            'RUNTIME_ERROR',
+            'COMPILATION_ERROR'
+        ))
+);
+
+CREATE TABLE user_model_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    provider_type VARCHAR(50) NOT NULL,
+    base_url VARCHAR(500),
+    model_name VARCHAR(255) NOT NULL,
+    encrypted_api_key TEXT NOT NULL,
+    temperature NUMERIC(3, 2),
+    is_default BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_user_model_settings_user
+        FOREIGN KEY (user_id) REFERENCES user_profile (id) ON DELETE CASCADE,
+    CONSTRAINT chk_user_model_settings_temperature
+        CHECK (temperature IS NULL OR (temperature >= 0 AND temperature <= 2))
+);
+
+CREATE TABLE chat_session (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    settings_id UUID,
+    task_id UUID,
+    submission_id UUID,
+    title VARCHAR(255),
+    model_provider VARCHAR(50) NOT NULL,
+    model_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_message_at TIMESTAMPTZ,
+
+    CONSTRAINT fk_chat_session_user
+        FOREIGN KEY (user_id) REFERENCES user_profile (id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_session_settings
+        FOREIGN KEY (settings_id) REFERENCES user_model_settings (id) ON DELETE SET NULL,
+    CONSTRAINT fk_chat_session_task
+        FOREIGN KEY (task_id) REFERENCES task (id) ON DELETE SET NULL,
+    CONSTRAINT fk_chat_session_submission
+        FOREIGN KEY (submission_id) REFERENCES submission (id) ON DELETE SET NULL
+);
+
+CREATE TABLE chat_message (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL,
+    role VARCHAR(10) NOT NULL,
+    content TEXT NOT NULL,
+    message_order INTEGER NOT NULL,
+    status VARCHAR(10) NOT NULL,
+    model_provider VARCHAR(50),
+    model_name VARCHAR(255),
+    prompt_tokens INTEGER,
+    completion_tokens INTEGER,
+    total_tokens INTEGER,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_chat_message_session
+        FOREIGN KEY (session_id) REFERENCES chat_session (id) ON DELETE CASCADE,
+    CONSTRAINT uq_chat_message_session_order
+        UNIQUE (session_id, message_order),
+    CONSTRAINT chk_chat_message_role
+        CHECK (role IN ('USER', 'ASSISTANT', 'SYSTEM')),
+    CONSTRAINT chk_chat_message_status
+        CHECK (status IN ('CREATED', 'SENT', 'COMPLETED', 'FAILED')),
+    CONSTRAINT chk_chat_message_order
+        CHECK (message_order >= 0),
+    CONSTRAINT chk_chat_message_tokens
+        CHECK (
+            (prompt_tokens IS NULL OR prompt_tokens >= 0)
+            AND (completion_tokens IS NULL OR completion_tokens >= 0)
+            AND (total_tokens IS NULL OR total_tokens >= 0)
+        )
+);
+
+CREATE TABLE generation_request (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    user_prompt TEXT,
+    final_prompt TEXT,
+    status VARCHAR(10) NOT NULL,
+    model_provider VARCHAR(50),
+    model_name VARCHAR(255),
+    generated_task_id UUID UNIQUE,
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT fk_generation_request_user
+        FOREIGN KEY (user_id) REFERENCES user_profile (id),
+    CONSTRAINT fk_generation_request_generated_task
+        FOREIGN KEY (generated_task_id) REFERENCES task (id) ON DELETE SET NULL,
+    CONSTRAINT chk_generation_request_status
+        CHECK (status IN ('QUEUED', 'PROCESSING', 'DONE', 'FAILED'))
+);
