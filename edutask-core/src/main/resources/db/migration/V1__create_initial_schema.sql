@@ -41,14 +41,14 @@ CREATE TABLE test_case (
     CONSTRAINT fk_test_case_task
         FOREIGN KEY (task_id) REFERENCES task (id) ON DELETE CASCADE,
     CONSTRAINT chk_test_case_points
-        CHECK (points >= 0),
+        CHECK (points >= 0)
 );
 
 CREATE TABLE programming_language (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     code VARCHAR(50) NOT NULL UNIQUE,
-    judge0_language_id INTEGER NOT NULL,
+    judge0_language_id INTEGER NOT NULL
 );
 
 CREATE TABLE task_language (
@@ -108,7 +108,7 @@ CREATE TABLE submission (
     CONSTRAINT chk_submission_score
         CHECK (score >= 0),
     CONSTRAINT chk_submission_tests_count
-        CHECK (passed_tests >= 0 AND total_tests >= 0 AND passed_tests <= total_tests),
+        CHECK (passed_tests >= 0 AND total_tests >= 0 AND passed_tests <= total_tests)
 );
 
 CREATE TABLE submission_test_result (
