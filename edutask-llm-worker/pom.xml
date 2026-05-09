@@ -9,7 +9,6 @@
     </parent>
 
     <artifactId>edutask-llm-worker</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
     <name>edutask-llm-worker</name>
     <description>edutask-llm-worker</description>
 

@@ -9,7 +9,6 @@
     </parent>
 
     <artifactId>edutask-gateway</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
     <name>edutask-gateway</name>
     <description>edutask-gateway</description>
 

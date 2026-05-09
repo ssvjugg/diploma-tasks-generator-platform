@@ -9,7 +9,6 @@
     </parent>
 
     <artifactId>edutask-common</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
     <name>edutask-common</name>
     <description>edutask-common</description>
 
@@ -22,6 +21,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations-jakarta</artifactId>
         </dependency>
     </dependencies>
 
