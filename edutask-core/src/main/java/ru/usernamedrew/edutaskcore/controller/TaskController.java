@@ -100,7 +100,7 @@ public class TaskController {
         return taskService.patchTask(id, request);
     }
 
-    @Operation(summary = "Удалить задачу", description = "Удаляет задачу из PostgreSQL. Связанные тест-кейсы удаляются каскадно на уровне БД.")
+    @Operation(summary = "Удалить задачу", description = "Удаляет задачу. Связанные тест-кейсы удаляются каскадно на уровне БД.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Задача удалена"),
         @ApiResponse(responseCode = "404", description = "Задача не найдена", content = @Content(schema = @Schema(hidden = true)))
