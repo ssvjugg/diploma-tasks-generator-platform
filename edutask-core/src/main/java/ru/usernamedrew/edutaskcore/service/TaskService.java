@@ -89,7 +89,7 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse updateTask(UUID id, TaskUpdateRequest request) {
+    public TaskResponse patchTask(UUID id, TaskUpdateRequest request) {
         Task task = findDetailedTask(id);
 
         if (request.title() != null) {

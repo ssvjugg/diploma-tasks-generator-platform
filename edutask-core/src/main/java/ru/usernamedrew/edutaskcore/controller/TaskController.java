@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -87,17 +86,6 @@ public class TaskController {
         return taskService.createTask(request);
     }
 
-    @Operation(summary = "Полностью обновить задачу", description = "Обновляет основные поля задачи и ее связи.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Задача обновлена"),
-        @ApiResponse(responseCode = "400", description = "Ошибка валидации", content = @Content(schema = @Schema(hidden = true))),
-        @ApiResponse(responseCode = "404", description = "Задача, автор, тема или язык не найдены", content = @Content(schema = @Schema(hidden = true)))
-    })
-    @PutMapping("/{id}")
-    public TaskResponse updateTask(@PathVariable UUID id, @Valid @RequestBody TaskUpdateRequest request) {
-        return taskService.updateTask(id, request);
-    }
-
     @Operation(
         summary = "Частично обновить задачу",
         description = "Обновляет только переданные поля. Чтобы очистить темы или языки, передайте пустой массив."
@@ -109,7 +97,7 @@ public class TaskController {
     })
     @PatchMapping("/{id}")
     public TaskResponse patchTask(@PathVariable UUID id, @Valid @RequestBody TaskUpdateRequest request) {
-        return taskService.updateTask(id, request);
+        return taskService.patchTask(id, request);
     }
 
     @Operation(summary = "Удалить задачу", description = "Удаляет задачу из PostgreSQL. Связанные тест-кейсы удаляются каскадно на уровне БД.")
