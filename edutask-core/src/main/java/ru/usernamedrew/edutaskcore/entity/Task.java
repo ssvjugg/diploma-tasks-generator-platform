@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ru.usernamedrew.edutaskcommon.dto.task.TaskDifficulty;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -49,8 +50,4 @@ public class Task extends BaseEntity {
         inverseJoinColumns = @JoinColumn(name = "language_id")
     )
     private Set<ProgrammingLanguage> supportedLanguages = new HashSet<>();
-
-    public enum TaskDifficulty {
-        EASY, MEDIUM, HARD
-    }
 }
