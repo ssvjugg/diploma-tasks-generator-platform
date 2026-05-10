@@ -46,7 +46,7 @@ public class TaskController {
     @GetMapping
     public Page<TaskSummary> getTasks(
         @ParameterObject TaskSearchRequest request,
-        @ParameterObject @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
+        @ParameterObject @PageableDefault(size = 20, sort = "title") Pageable pageable
     ) {
         return taskService.findTasks(request, pageable);
     }
@@ -59,7 +59,7 @@ public class TaskController {
     @PostMapping("/search")
     public Page<TaskSummary> searchTasks(
         @Valid @RequestBody TaskSearchRequest request,
-        @ParameterObject @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
+        @ParameterObject @PageableDefault(size = 20, sort = "title") Pageable pageable
     ) {
         return taskService.findTasks(request, pageable);
     }

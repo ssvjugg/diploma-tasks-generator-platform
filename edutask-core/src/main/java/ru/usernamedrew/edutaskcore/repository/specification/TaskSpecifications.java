@@ -1,6 +1,8 @@
 package ru.usernamedrew.edutaskcore.repository.specification;
 
 import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskDifficulty;
 import ru.usernamedrew.edutaskcore.entity.Task;
@@ -41,8 +43,15 @@ public final class TaskSpecifications {
             if (topicId == null) {
                 return criteriaBuilder.conjunction();
             }
-            criteriaQuery.distinct(true);
-            return criteriaBuilder.equal(root.join("topics", JoinType.INNER).get("id"), topicId);
+            Subquery<UUID> subquery = criteriaQuery.subquery(UUID.class);
+            Root<Task> subqueryRoot = subquery.from(Task.class);
+            subquery.select(subqueryRoot.get("id"))
+                .where(
+                    criteriaBuilder.equal(subqueryRoot.get("id"), root.get("id")),
+                    criteriaBuilder.equal(subqueryRoot.join("topics", JoinType.INNER).get("id"), topicId)
+                );
+
+            return criteriaBuilder.exists(subquery);
         };
     }
 
@@ -51,11 +60,18 @@ public final class TaskSpecifications {
             if (languageCode == null || languageCode.isBlank()) {
                 return criteriaBuilder.conjunction();
             }
-            criteriaQuery.distinct(true);
-            return criteriaBuilder.equal(
-                criteriaBuilder.lower(root.join("supportedLanguages", JoinType.INNER).get("code")),
-                languageCode.trim().toLowerCase()
-            );
+            Subquery<UUID> subquery = criteriaQuery.subquery(UUID.class);
+            Root<Task> subqueryRoot = subquery.from(Task.class);
+            subquery.select(subqueryRoot.get("id"))
+                .where(
+                    criteriaBuilder.equal(subqueryRoot.get("id"), root.get("id")),
+                    criteriaBuilder.equal(
+                        criteriaBuilder.lower(subqueryRoot.join("supportedLanguages", JoinType.INNER).get("code")),
+                        languageCode.trim().toLowerCase()
+                    )
+                );
+
+            return criteriaBuilder.exists(subquery);
         };
     }
 }
