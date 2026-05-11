@@ -13,12 +13,10 @@ import ru.usernamedrew.edutaskcommon.dto.task.TaskSummary;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskUpdateRequest;
 import ru.usernamedrew.edutaskcore.entity.ProgrammingLanguage;
 import ru.usernamedrew.edutaskcore.entity.Task;
-import ru.usernamedrew.edutaskcore.entity.Topic;
 import ru.usernamedrew.edutaskcore.exception.ResourceNotFoundException;
 import ru.usernamedrew.edutaskcore.mapper.TaskMapper;
 import ru.usernamedrew.edutaskcore.repository.ProgrammingLanguageRepository;
 import ru.usernamedrew.edutaskcore.repository.TaskRepository;
-import ru.usernamedrew.edutaskcore.repository.TopicRepository;
 import ru.usernamedrew.edutaskcore.repository.UserProfileRepository;
 import ru.usernamedrew.edutaskcore.repository.projection.TaskSummaryProjection;
 
@@ -37,8 +35,8 @@ import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifica
 public class TaskService {
     private final TaskRepository taskRepository;
     private final UserProfileRepository userProfileRepository;
-    private final TopicRepository topicRepository;
     private final ProgrammingLanguageRepository programmingLanguageRepository;
+    private final TopicService topicService;
     private final TaskMapper taskMapper;
 
     @Transactional(readOnly = true)
@@ -81,7 +79,7 @@ public class TaskService {
         task.setDifficulty(request.difficulty());
         task.setAuthor(userProfileRepository.findById(request.authorId())
             .orElseThrow(() -> new ResourceNotFoundException("UserProfile not found: " + request.authorId())));
-        task.setTopics(resolveTopics(request.topicIds()));
+        task.setTopics(topicService.resolveTopics(request.topicIds()));
         task.setSupportedLanguages(resolveLanguages(request.languageIds()));
 
         Task savedTask = taskRepository.saveAndFlush(task);
@@ -112,7 +110,7 @@ public class TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("UserProfile not found: " + request.authorId())));
         }
         if (request.topicIds() != null) {
-            task.setTopics(resolveTopics(request.topicIds()));
+            task.setTopics(topicService.resolveTopics(request.topicIds()));
         }
         if (request.languageIds() != null) {
             task.setSupportedLanguages(resolveLanguages(request.languageIds()));
@@ -132,17 +130,6 @@ public class TaskService {
     private Task findDetailedTask(UUID id) {
         return taskRepository.findDetailedById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
-    }
-
-    private Set<Topic> resolveTopics(Set<UUID> topicIds) {
-        if (topicIds == null || topicIds.isEmpty()) {
-            return new HashSet<>();
-        }
-        Set<Topic> topics = new HashSet<>(topicRepository.findAllById(topicIds));
-        if (topics.size() != topicIds.size()) {
-            throw new ResourceNotFoundException("One or more topics were not found");
-        }
-        return topics;
     }
 
     private Set<ProgrammingLanguage> resolveLanguages(Set<Integer> languageIds) {

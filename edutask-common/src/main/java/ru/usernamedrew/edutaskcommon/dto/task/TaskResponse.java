@@ -1,6 +1,7 @@
 package ru.usernamedrew.edutaskcommon.dto.task;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary;
 
 import java.time.OffsetDateTime;
 import java.util.Set;

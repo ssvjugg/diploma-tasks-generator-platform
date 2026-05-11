@@ -1,4 +1,4 @@
-package ru.usernamedrew.edutaskcommon.dto.task;
+package ru.usernamedrew.edutaskcommon.dto.topic;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
