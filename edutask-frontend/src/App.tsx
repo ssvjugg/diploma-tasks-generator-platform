@@ -8,15 +8,22 @@ import {
   Plus,
   Search,
   Sparkles,
+  Tags,
   X,
 } from 'lucide-react';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { createTask, getTasks } from './api/tasks';
+import { getTopics } from './api/topics';
 import { resolveCurrentAuthorId } from './auth/currentUser';
-import type { PageResponse, TaskCreateRequest, TaskDifficulty, TaskSummary } from './types/task';
+import type { PageResponse } from './types/page';
+import type { TaskCreateRequest, TaskDifficulty, TaskSummary } from './types/task';
+import type { Topic } from './types/topic';
 
 const TASKS_PAGE_SIZE = 20;
+const TOPICS_PAGE_SIZE = 12;
 const MarkdownEditor = lazy(() => import('@uiw/react-md-editor'));
+
+type AppSection = 'tasks' | 'topics';
 
 type TaskFormState = {
   title: string;
@@ -80,7 +87,146 @@ function MarkdownField({ label, value, rows = 4, required, onChange }: MarkdownF
   );
 }
 
+function TopicsView() {
+  const [topicsPage, setTopicsPage] = useState<PageResponse<Topic> | null>(null);
+  const [topicQuery, setTopicQuery] = useState('');
+  const [topicPageNumber, setTopicPageNumber] = useState(0);
+  const [isTopicsLoading, setIsTopicsLoading] = useState(true);
+  const [topicsError, setTopicsError] = useState<string | null>(null);
+
+  const loadTopics = useCallback(async (page: number, query: string) => {
+    setIsTopicsLoading(true);
+    setTopicsError(null);
+
+    try {
+      const data = await getTopics({ page, query, size: TOPICS_PAGE_SIZE });
+      setTopicsPage(data);
+    } catch (requestError) {
+      setTopicsError(requestError instanceof Error ? requestError.message : 'Не удалось получить темы');
+    } finally {
+      setIsTopicsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTopics(topicPageNumber, topicQuery);
+  }, [loadTopics, topicPageNumber, topicQuery]);
+
+  const topics = topicsPage?.content ?? [];
+  const totalPages = topicsPage?.totalPages ?? 0;
+  const displayedPageNumber = totalPages === 0 ? 0 : topicPageNumber + 1;
+  const isLastPage = topicsPage?.last ?? true;
+  const canGoBack = !isTopicsLoading && !topicsError && topicPageNumber > 0;
+  const canGoForward = !isTopicsLoading && !topicsError && !isLastPage;
+
+  return (
+    <>
+      <header className="workspace__header">
+        <div>
+          <h1 id="page-title">Темы</h1>
+          <p className="workspace__subtitle">
+            Темы помогают группировать задачи по разделам программирования и быстрее находить нужный материал.
+          </p>
+        </div>
+      </header>
+
+      <div className="list-toolbar topics-toolbar">
+        <label className="search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Поиск по теме"
+            value={topicQuery}
+            onChange={(event) => {
+              setTopicQuery(event.target.value);
+              setTopicPageNumber(0);
+            }}
+          />
+        </label>
+
+        <div className="segmented-control" aria-label="Сортировка тем">
+          <button className="segmented-control__item segmented-control__item--active" type="button">
+            Имя
+          </button>
+          <button className="segmented-control__item" type="button" disabled>
+            Новые
+          </button>
+        </div>
+      </div>
+
+      <section className="topics-section" aria-label="Список тем">
+        {isTopicsLoading && (
+          <div className="state-view">
+            <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+            <span>Загрузка тем</span>
+          </div>
+        )}
+
+        {!isTopicsLoading && topicsError && (
+          <div className="state-view state-view--error">
+            <span>{topicsError}</span>
+            <button className="text-button" type="button" onClick={() => loadTopics(topicPageNumber, topicQuery)}>
+              Повторить
+            </button>
+          </div>
+        )}
+
+        {!isTopicsLoading && !topicsError && topics.length === 0 && (
+          <div className="state-view">
+            <span>Темы не найдены</span>
+          </div>
+        )}
+
+        {!isTopicsLoading && !topicsError && topics.length > 0 && (
+          <div className="topics-grid">
+            {topics.map((topic) => (
+              <article className="topic-card" key={topic.id}>
+                <h2>
+                  <span>{topic.name}</span>
+                </h2>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <nav className="pagination" aria-label="Пагинация тем">
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={() => setTopicPageNumber((page) => Math.max(page - 1, 0))}
+          disabled={!canGoBack}
+          aria-label="Предыдущая страница"
+          title="Предыдущая страница"
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+
+        <span className="pagination__status">
+          Страница {displayedPageNumber} из {totalPages}
+        </span>
+
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={() => {
+            if (!isLastPage) {
+              setTopicPageNumber((page) => page + 1);
+            }
+          }}
+          disabled={!canGoForward}
+          aria-label="Следующая страница"
+          title="Следующая страница"
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </nav>
+    </>
+  );
+}
+
 function App() {
+  const [activeSection, setActiveSection] = useState<AppSection>('tasks');
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -239,121 +385,144 @@ function App() {
     <main className="app-shell">
       <section className="workspace" aria-labelledby="page-title">
         <div className="top-bar">
-          <div className="brand-mark" aria-hidden="true">
-            E
-          </div>
+          <img className="brand-mark" src="/brand/logo.png" alt="" aria-hidden="true" />
           <span className="top-bar__name">EduTask</span>
         </div>
 
-        <header className="workspace__header">
-          <div>
-            <h1 id="page-title">Банк задач</h1>
-            <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
-          </div>
-
-          <button className="icon-button icon-button--labeled icon-button--primary" type="button" onClick={openCreateForm}>
-            <Plus size={18} aria-hidden="true" />
-            <span>Создать</span>
-          </button>
-        </header>
-
-        <div className="list-toolbar">
-          <label className="search-field">
-            <Search size={18} aria-hidden="true" />
-            <input
-              type="search"
-              placeholder="Поиск по названию"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </label>
-          <div className="list-toolbar__stats" aria-label="Сводка банка задач">
-            <span>{tasksPage?.totalElements ?? 0} всего</span>
-            <span>{tasks.length} показано</span>
-            <span>{TASKS_PAGE_SIZE} на странице</span>
-          </div>
-        </div>
-
-        <section className="task-list" aria-label="Список задач">
-          {isLoading && (
-            <div className="state-view">
-              <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
-              <span>Загрузка задач</span>
-            </div>
-          )}
-
-          {!isLoading && error && (
-            <div className="state-view state-view--error">
-              <span>{error}</span>
-              <button className="text-button" type="button" onClick={() => loadTasks(currentPage)}>
-                Повторить
-              </button>
-            </div>
-          )}
-
-          {!isLoading && !error && tasks.length === 0 && !query && (
-            <div className="state-view">
-              <span>Задач пока нет</span>
-            </div>
-          )}
-
-          {!isLoading && !error && tasks.length === 0 && query && (
-            <div className="state-view">
-              <span>По этому запросу задач не найдено</span>
-            </div>
-          )}
-
-          {!isLoading && !error && tasks.length > 0 && (
-            <div className="task-table" role="table" aria-label="Задачи">
-              <div className="task-table__header" role="row">
-                <span role="columnheader">Название</span>
-                <span role="columnheader">Сложность</span>
+        {activeSection === 'tasks' ? (
+          <>
+            <header className="workspace__header">
+              <div>
+                <h1 id="page-title">Банк задач</h1>
+                <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
               </div>
 
-              {tasks.map((task) => (
-                <article className="task-row" key={task.id} role="row">
-                  <h2 role="cell">{task.title}</h2>
-                  <span className={difficultyClassNames[task.difficulty]} role="cell">
-                    {difficultyLabels[task.difficulty]}
-                  </span>
-                </article>
-              ))}
+              <button
+                className="icon-button icon-button--labeled icon-button--primary"
+                type="button"
+                onClick={openCreateForm}
+              >
+                <Plus size={18} aria-hidden="true" />
+                <span>Создать</span>
+              </button>
+            </header>
+
+            <div className="list-toolbar">
+              <label className="search-field">
+                <Search size={18} aria-hidden="true" />
+                <input
+                  type="search"
+                  placeholder="Поиск по названию"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+              <div className="list-toolbar__stats" aria-label="Сводка банка задач">
+                <span>{tasksPage?.totalElements ?? 0} всего</span>
+                <span>{tasks.length} показано</span>
+                <span>{TASKS_PAGE_SIZE} на странице</span>
+              </div>
             </div>
-          )}
-        </section>
 
-        <nav className="pagination" aria-label="Пагинация задач">
-          <button
-            className="pagination__button"
-            type="button"
-            onClick={goToPreviousPage}
-            disabled={!canGoBack}
-            aria-label="Предыдущая страница"
-            title="Предыдущая страница"
-          >
-            <ChevronLeft size={18} aria-hidden="true" />
-          </button>
+            <section className="task-list" aria-label="Список задач">
+              {isLoading && (
+                <div className="state-view">
+                  <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+                  <span>Загрузка задач</span>
+                </div>
+              )}
 
-          <span className="pagination__status">
-            Страница {displayedPageNumber} из {totalPages}
-          </span>
+              {!isLoading && error && (
+                <div className="state-view state-view--error">
+                  <span>{error}</span>
+                  <button className="text-button" type="button" onClick={() => loadTasks(currentPage)}>
+                    Повторить
+                  </button>
+                </div>
+              )}
 
-          <button
-            className="pagination__button"
-            type="button"
-            onClick={goToNextPage}
-            disabled={!canGoForward}
-            aria-label="Следующая страница"
-            title="Следующая страница"
-          >
-            <ChevronRight size={18} aria-hidden="true" />
-          </button>
-        </nav>
+              {!isLoading && !error && tasks.length === 0 && !query && (
+                <div className="state-view">
+                  <span>Задач пока нет</span>
+                </div>
+              )}
+
+              {!isLoading && !error && tasks.length === 0 && query && (
+                <div className="state-view">
+                  <span>По этому запросу задач не найдено</span>
+                </div>
+              )}
+
+              {!isLoading && !error && tasks.length > 0 && (
+                <div className="task-table" role="table" aria-label="Задачи">
+                  <div className="task-table__header" role="row">
+                    <span role="columnheader">Название</span>
+                    <span role="columnheader">Сложность</span>
+                  </div>
+
+                  {tasks.map((task) => (
+                    <article className="task-row" key={task.id} role="row">
+                      <h2 role="cell">{task.title}</h2>
+                      <span className={difficultyClassNames[task.difficulty]} role="cell">
+                        {difficultyLabels[task.difficulty]}
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <nav className="pagination" aria-label="Пагинация задач">
+              <button
+                className="pagination__button"
+                type="button"
+                onClick={goToPreviousPage}
+                disabled={!canGoBack}
+                aria-label="Предыдущая страница"
+                title="Предыдущая страница"
+              >
+                <ChevronLeft size={18} aria-hidden="true" />
+              </button>
+
+              <span className="pagination__status">
+                Страница {displayedPageNumber} из {totalPages}
+              </span>
+
+              <button
+                className="pagination__button"
+                type="button"
+                onClick={goToNextPage}
+                disabled={!canGoForward}
+                aria-label="Следующая страница"
+                title="Следующая страница"
+              >
+                <ChevronRight size={18} aria-hidden="true" />
+              </button>
+            </nav>
+          </>
+        ) : (
+          <TopicsView />
+        )}
       </section>
 
       <aside className="side-nav" aria-label="Основные разделы">
-        <button className="side-nav__item side-nav__item--active" type="button" aria-label="Банк задач" title="Банк задач">
+        <button
+          className={`side-nav__item ${activeSection === 'tasks' ? 'side-nav__item--active' : ''}`}
+          type="button"
+          onClick={() => setActiveSection('tasks')}
+          aria-label="Банк задач"
+          title="Банк задач"
+        >
           <ClipboardList size={22} aria-hidden="true" />
+        </button>
+        <button
+          className={`side-nav__item ${activeSection === 'topics' ? 'side-nav__item--active' : ''}`}
+          type="button"
+          onClick={() => setActiveSection('topics')}
+          aria-label="Темы"
+          title="Темы"
+        >
+          <Tags size={22} aria-hidden="true" />
         </button>
         <button className="side-nav__item" type="button" aria-label="Чат с LLM" title="Чат с LLM" disabled>
           <BotMessageSquare size={22} aria-hidden="true" />

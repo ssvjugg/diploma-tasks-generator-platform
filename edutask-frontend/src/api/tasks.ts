@@ -1,4 +1,5 @@
-import type { PageResponse, TaskCreateRequest, TaskSummary } from '../types/task';
+import type { PageResponse } from '../types/page';
+import type { TaskCreateRequest, TaskSummary } from '../types/task';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
