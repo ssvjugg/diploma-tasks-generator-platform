@@ -5,7 +5,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import ru.usernamedrew.edutaskcommon.dto.task.ProgrammingLanguageSummary;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskResponse;
-import ru.usernamedrew.edutaskcommon.dto.task.TopicSummary;
+import ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary;
 import ru.usernamedrew.edutaskcore.entity.ProgrammingLanguage;
 import ru.usernamedrew.edutaskcore.entity.Task;
 import ru.usernamedrew.edutaskcore.entity.Topic;
