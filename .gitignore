@@ -32,5 +32,10 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### Frontend ###
+node_modules/
+dist/
+*.tsbuildinfo
+
 ### VS Code ###
 .vscode/

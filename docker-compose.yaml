@@ -1,4 +1,17 @@
 services:
+  frontend:
+    build:
+      context: ./edutask-frontend
+      args:
+        VITE_DEV_AUTHOR_ID: ${VITE_DEV_AUTHOR_ID:-11111111-1111-1111-1111-111111111111}
+    container_name: edutask-frontend
+    environment:
+      API_UPSTREAM: http://host.docker.internal:8080
+    ports:
+      - "3000:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   postgres:
     image: postgres:16-alpine
     container_name: edutask-postgres
