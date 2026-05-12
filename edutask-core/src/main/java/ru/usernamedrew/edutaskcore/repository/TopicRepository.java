@@ -20,8 +20,9 @@ public interface TopicRepository extends JpaRepository<Topic, UUID> {
     @Query("""
         select t
         from Topic t
+        left join t.parent p
         where (:query is null or lower(t.name) like concat('%', :query, '%'))
-          and (:parentId is null or t.parent.id = :parentId)
+          and (:parentId is null or p.id = :parentId)
         """)
     Page<Topic> findByFilters(
         @Param("query") String query,
