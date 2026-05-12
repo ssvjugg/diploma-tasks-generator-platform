@@ -385,7 +385,7 @@ function App() {
     <main className="app-shell">
       <section className="workspace" aria-labelledby="page-title">
         <div className="top-bar">
-          <img className="brand-mark" src="/brand/logo.png" alt="" aria-hidden="true" />
+          <img className="brand-mark" src="/brand/sfedu-logo.svg" alt="Южный федеральный университет" />
           <span className="top-bar__name">EduTask</span>
         </div>
 
