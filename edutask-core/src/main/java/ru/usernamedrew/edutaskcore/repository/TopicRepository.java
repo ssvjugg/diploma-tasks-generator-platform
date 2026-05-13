@@ -20,12 +20,36 @@ public interface TopicRepository extends JpaRepository<Topic, UUID> {
     @Query("""
         select t
         from Topic t
+        """)
+    Page<Topic> findAllDetailed(Pageable pageable);
+
+    @EntityGraph(attributePaths = "parent")
+    @Query("""
+        select t
+        from Topic t
+        where lower(t.name) like :queryPattern
+        """)
+    Page<Topic> findByNameLike(@Param("queryPattern") String queryPattern, Pageable pageable);
+
+    @EntityGraph(attributePaths = "parent")
+    @Query("""
+        select t
+        from Topic t
         left join t.parent p
-        where (:query is null or lower(t.name) like concat('%', :query, '%'))
-          and (:parentId is null or p.id = :parentId)
+        where p.id = :parentId
+        """)
+    Page<Topic> findByParentId(@Param("parentId") UUID parentId, Pageable pageable);
+
+    @EntityGraph(attributePaths = "parent")
+    @Query("""
+        select t
+        from Topic t
+        left join t.parent p
+        where lower(t.name) like :queryPattern
+          and p.id = :parentId
         """)
     Page<Topic> findByFilters(
-        @Param("query") String query,
+        @Param("queryPattern") String queryPattern,
         @Param("parentId") UUID parentId,
         Pageable pageable
     );
