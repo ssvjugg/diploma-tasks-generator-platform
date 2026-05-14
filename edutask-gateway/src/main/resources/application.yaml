@@ -1,3 +1,9 @@
 spring:
   application:
     name: edutask-gateway
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          enabled: true
