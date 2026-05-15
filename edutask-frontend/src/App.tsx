@@ -274,6 +274,147 @@ function TopicsView() {
   );
 }
 
+type TasksListViewProps = {
+  tasksPage: PageResponse<TaskSummary> | null;
+  tasks: TaskSummary[];
+  query: string;
+  currentPage: number;
+  isLoading: boolean;
+  error: string | null;
+  onQueryChange: (value: string) => void;
+  onCreateTaskClick: () => void;
+  onLoadTasks: (page: number) => Promise<void>;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
+};
+
+function TasksListView({
+  tasksPage,
+  tasks,
+  query,
+  currentPage,
+  isLoading,
+  error,
+  onQueryChange,
+  onCreateTaskClick,
+  onLoadTasks,
+  onPreviousPage,
+  onNextPage,
+}: TasksListViewProps) {
+  const totalPages = tasksPage?.totalPages ?? 0;
+  const displayedPageNumber = totalPages === 0 ? 0 : currentPage + 1;
+  const isLastPage = tasksPage?.last ?? true;
+  const canGoBack = !isLoading && !error && currentPage > 0;
+  const canGoForward = !isLoading && !error && !isLastPage;
+
+  return (
+    <>
+      <header className="workspace__header">
+        <div>
+          <h1 id="page-title">Банк задач</h1>
+          <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
+        </div>
+
+        <button className="icon-button icon-button--labeled icon-button--primary" type="button" onClick={onCreateTaskClick}>
+          <Plus size={18} aria-hidden="true" />
+          <span>Создать</span>
+        </button>
+      </header>
+
+      <div className="list-toolbar">
+        <label className="search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Поиск по названию"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+          />
+        </label>
+        <div className="list-toolbar__stats" aria-label="Сводка банка задач">
+          <span>{tasksPage?.totalElements ?? 0} всего</span>
+          <span>{tasks.length} показано</span>
+          <span>{TASKS_PAGE_SIZE} на странице</span>
+        </div>
+      </div>
+
+      <section className="task-list" aria-label="Список задач">
+        {isLoading && (
+          <div className="state-view">
+            <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+            <span>Загрузка задач</span>
+          </div>
+        )}
+
+        {!isLoading && error && (
+          <div className="state-view state-view--error">
+            <span>{error}</span>
+            <button className="text-button" type="button" onClick={() => onLoadTasks(currentPage)}>
+              Повторить
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length === 0 && !query && (
+          <div className="state-view">
+            <span>Задач пока нет</span>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length === 0 && query && (
+          <div className="state-view">
+            <span>По этому запросу задач не найдено</span>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length > 0 && (
+          <div className="task-table" aria-label="Задачи">
+            <div className="task-table__header" aria-hidden="true">
+              <span>Название</span>
+              <span>Сложность</span>
+            </div>
+
+            {tasks.map((task) => (
+              <Link className="task-row task-row--interactive" key={task.id} to={`/tasks/${task.id}`}>
+                <h2>{task.title}</h2>
+                <span className={difficultyClassNames[task.difficulty]}>{difficultyLabels[task.difficulty]}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <nav className="pagination" aria-label="Пагинация задач">
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={onPreviousPage}
+          disabled={!canGoBack}
+          aria-label="Предыдущая страница"
+          title="Предыдущая страница"
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+
+        <span className="pagination__status">
+          Страница {displayedPageNumber} из {totalPages}
+        </span>
+
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={onNextPage}
+          disabled={!canGoForward}
+          aria-label="Следующая страница"
+          title="Следующая страница"
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </nav>
+    </>
+  );
+}
+
 function TaskDetailView() {
   const navigate = useNavigate();
   const { taskId } = useParams<{ taskId: string }>();
@@ -282,28 +423,48 @@ function TaskDetailView() {
   const [taskError, setTaskError] = useState<string | null>(null);
   const [solutionCode, setSolutionCode] = useState('');
 
-  const loadTask = useCallback(async () => {
+  const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
     if (!taskId) {
-      setTaskError('Не указан идентификатор задачи');
-      setIsTaskLoading(false);
+      if (shouldApplyResult()) {
+        setTaskError('Не указан идентификатор задачи');
+        setIsTaskLoading(false);
+      }
       return;
     }
 
-    setIsTaskLoading(true);
-    setTaskError(null);
+    if (shouldApplyResult()) {
+      setIsTaskLoading(true);
+      setTaskError(null);
+    }
 
     try {
-      const data = await getTask(taskId);
-      setTask(data);
+      const data = await getTask(taskId, { signal });
+      if (shouldApplyResult()) {
+        setTask(data);
+      }
     } catch (requestError) {
-      setTaskError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачу');
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
+      if (shouldApplyResult()) {
+        setTaskError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачу');
+      }
     } finally {
-      setIsTaskLoading(false);
+      if (!signal?.aborted && shouldApplyResult()) {
+        setIsTaskLoading(false);
+      }
     }
   }, [taskId]);
 
   useEffect(() => {
-    void loadTask();
+    const controller = new AbortController();
+    let isActive = true;
+    void loadTask(controller.signal, () => isActive);
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
   }, [loadTask]);
 
   if (isTaskLoading) {
@@ -319,7 +480,7 @@ function TaskDetailView() {
     return (
       <div className="state-view state-view--error task-detail-state">
         <span>{taskError ?? 'Задача не найдена'}</span>
-        <button className="text-button" type="button" onClick={loadTask}>
+        <button className="text-button" type="button" onClick={() => loadTask()}>
           Повторить
         </button>
       </div>
@@ -512,11 +673,7 @@ function App() {
     return source.filter((task) => task.title.toLowerCase().includes(normalizedQuery));
   }, [query, tasksPage]);
 
-  const totalPages = tasksPage?.totalPages ?? 0;
-  const displayedPageNumber = totalPages === 0 ? 0 : currentPage + 1;
   const isLastPage = tasksPage?.last ?? true;
-  const canGoBack = !isLoading && !error && currentPage > 0;
-  const canGoForward = !isLoading && !error && !isLastPage;
 
   const goToPreviousPage = () => {
     setCurrentPage((page) => Math.max(page - 1, 0));
@@ -610,120 +767,19 @@ function App() {
           <Route
             path="/tasks"
             element={
-              <>
-            <header className="workspace__header">
-              <div>
-                <h1 id="page-title">Банк задач</h1>
-                <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
-              </div>
-
-              <button
-                className="icon-button icon-button--labeled icon-button--primary"
-                type="button"
-                onClick={openCreateForm}
-              >
-                <Plus size={18} aria-hidden="true" />
-                <span>Создать</span>
-              </button>
-            </header>
-
-            <div className="list-toolbar">
-              <label className="search-field">
-                <Search size={18} aria-hidden="true" />
-                <input
-                  type="search"
-                  placeholder="Поиск по названию"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <div className="list-toolbar__stats" aria-label="Сводка банка задач">
-                <span>{tasksPage?.totalElements ?? 0} всего</span>
-                <span>{tasks.length} показано</span>
-                <span>{TASKS_PAGE_SIZE} на странице</span>
-              </div>
-            </div>
-
-            <section className="task-list" aria-label="Список задач">
-              {isLoading && (
-                <div className="state-view">
-                  <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
-                  <span>Загрузка задач</span>
-                </div>
-              )}
-
-              {!isLoading && error && (
-                <div className="state-view state-view--error">
-                  <span>{error}</span>
-                  <button className="text-button" type="button" onClick={() => loadTasks(currentPage)}>
-                    Повторить
-                  </button>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length === 0 && !query && (
-                <div className="state-view">
-                  <span>Задач пока нет</span>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length === 0 && query && (
-                <div className="state-view">
-                  <span>По этому запросу задач не найдено</span>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length > 0 && (
-                <div className="task-table" role="table" aria-label="Задачи">
-                  <div className="task-table__header" role="row">
-                    <span role="columnheader">Название</span>
-                    <span role="columnheader">Сложность</span>
-                  </div>
-
-                  {tasks.map((task) => (
-                    <Link
-                      className="task-row task-row--interactive"
-                      key={task.id}
-                      to={`/tasks/${task.id}`}
-                    >
-                      <h2>{task.title}</h2>
-                      <span className={difficultyClassNames[task.difficulty]}>
-                        {difficultyLabels[task.difficulty]}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <nav className="pagination" aria-label="Пагинация задач">
-              <button
-                className="pagination__button"
-                type="button"
-                onClick={goToPreviousPage}
-                disabled={!canGoBack}
-                aria-label="Предыдущая страница"
-                title="Предыдущая страница"
-              >
-                <ChevronLeft size={18} aria-hidden="true" />
-              </button>
-
-              <span className="pagination__status">
-                Страница {displayedPageNumber} из {totalPages}
-              </span>
-
-              <button
-                className="pagination__button"
-                type="button"
-                onClick={goToNextPage}
-                disabled={!canGoForward}
-                aria-label="Следующая страница"
-                title="Следующая страница"
-              >
-                <ChevronRight size={18} aria-hidden="true" />
-              </button>
-            </nav>
-              </>
+              <TasksListView
+                tasksPage={tasksPage}
+                tasks={tasks}
+                query={query}
+                currentPage={currentPage}
+                isLoading={isLoading}
+                error={error}
+                onQueryChange={setQuery}
+                onCreateTaskClick={openCreateForm}
+                onLoadTasks={loadTasks}
+                onPreviousPage={goToPreviousPage}
+                onNextPage={goToNextPage}
+              />
             }
           />
           <Route path="/tasks/:taskId" element={<TaskDetailView />} />

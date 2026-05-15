@@ -27,8 +27,13 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
   return response.json();
 }
 
-export async function getTask(id: string): Promise<TaskResponse> {
+type RequestOptions = {
+  signal?: AbortSignal;
+};
+
+export async function getTask(id: string, options: RequestOptions = {}): Promise<TaskResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${id}`, {
+    signal: options.signal,
     headers: {
       Accept: 'application/json',
     },
