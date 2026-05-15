@@ -1,27 +1,37 @@
 import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   BotMessageSquare,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Code2,
   LoaderCircle,
+  MessageSquarePlus,
   Plus,
+  Play,
   Search,
+  Send,
   Sparkles,
   Tags,
+  Terminal,
   X,
 } from 'lucide-react';
 import '@uiw/react-md-editor/markdown-editor.css';
-import { createTask, getTasks } from './api/tasks';
+import { createTask, getTask, getTasks } from './api/tasks';
 import { getTopics } from './api/topics';
 import { resolveCurrentAuthorId } from './auth/currentUser';
 import type { PageResponse } from './types/page';
-import type { TaskCreateRequest, TaskDifficulty, TaskSummary } from './types/task';
+import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary } from './types/task';
 import type { Topic } from './types/topic';
 
 const TASKS_PAGE_SIZE = 20;
 const TOPICS_PAGE_SIZE = 12;
 const MarkdownEditor = lazy(() => import('@uiw/react-md-editor'));
+const MarkdownPreview = lazy(async () => {
+  const module = await import('@uiw/react-md-editor');
+  return { default: module.default.Markdown };
+});
 
 type AppSection = 'tasks' | 'topics';
 
@@ -84,6 +94,20 @@ function MarkdownField({ label, value, rows = 4, required, onChange }: MarkdownF
         </Suspense>
       </div>
     </label>
+  );
+}
+
+type MarkdownBlockProps = {
+  source: string;
+};
+
+function MarkdownBlock({ source }: MarkdownBlockProps) {
+  return (
+    <div className="problem-markdown" data-color-mode="light">
+      <Suspense fallback={<div className="problem-markdown__fallback">Загрузка текста</div>}>
+        <MarkdownPreview source={source} />
+      </Suspense>
+    </div>
   );
 }
 
@@ -225,8 +249,174 @@ function TopicsView() {
   );
 }
 
+type TaskDetailViewProps = {
+  taskId: string;
+  onBack: () => void;
+};
+
+function TaskDetailView({ taskId, onBack }: TaskDetailViewProps) {
+  const [task, setTask] = useState<TaskResponse | null>(null);
+  const [isTaskLoading, setIsTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [solutionCode, setSolutionCode] = useState('');
+
+  const loadTask = useCallback(async () => {
+    setIsTaskLoading(true);
+    setTaskError(null);
+
+    try {
+      const data = await getTask(taskId);
+      setTask(data);
+    } catch (requestError) {
+      setTaskError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачу');
+    } finally {
+      setIsTaskLoading(false);
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    void loadTask();
+  }, [loadTask]);
+
+  if (isTaskLoading) {
+    return (
+      <div className="state-view task-detail-state">
+        <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+        <span>Загрузка задачи</span>
+      </div>
+    );
+  }
+
+  if (taskError || !task) {
+    return (
+      <div className="state-view state-view--error task-detail-state">
+        <span>{taskError ?? 'Задача не найдена'}</span>
+        <button className="text-button" type="button" onClick={loadTask}>
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
+  const primaryLanguage = task.supportedLanguages[0];
+
+  return (
+    <section className="task-detail" aria-labelledby="page-title">
+      <header className="task-detail__topbar">
+        <button className="task-detail__back" type="button" onClick={onBack}>
+          <ArrowLeft size={18} aria-hidden="true" />
+          <span>Список задач</span>
+        </button>
+
+        <div className="task-detail__actions" aria-label="Действия с задачей">
+          <button className="secondary-button secondary-button--icon" type="button" disabled>
+            <MessageSquarePlus size={17} aria-hidden="true" />
+            <span>AI</span>
+          </button>
+          <button className="secondary-button secondary-button--icon" type="button" disabled>
+            <Play size={17} aria-hidden="true" />
+            <span>Run</span>
+          </button>
+          <button className="text-button text-button--icon" type="button" disabled>
+            <Send size={17} aria-hidden="true" />
+            <span>Submit</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="task-detail__grid">
+        <article className="problem-panel">
+          <div className="panel-tabs" aria-label="Разделы задачи">
+            <button className="panel-tab panel-tab--active" type="button">
+              Описание
+            </button>
+            <button className="panel-tab" type="button" disabled>
+              Обсуждение с AI
+            </button>
+            <button className="panel-tab" type="button" disabled>
+              Отправки
+            </button>
+          </div>
+
+          <div className="problem-content">
+            <h1 id="page-title">{task.title}</h1>
+            <div className="problem-chips">
+              <span className={difficultyClassNames[task.difficulty]}>{difficultyLabels[task.difficulty]}</span>
+              {task.topics.map((topic) => (
+                <span className="problem-chip" key={topic.id}>
+                  {topic.name}
+                </span>
+              ))}
+            </div>
+
+            <section className="problem-section">
+              <h2>Условие</h2>
+              <MarkdownBlock source={task.statement} />
+            </section>
+
+            {task.inputFormat && (
+              <section className="problem-section">
+                <h2>Входные данные</h2>
+                <MarkdownBlock source={task.inputFormat} />
+              </section>
+            )}
+
+            {task.outputFormat && (
+              <section className="problem-section">
+                <h2>Выходные данные</h2>
+                <MarkdownBlock source={task.outputFormat} />
+              </section>
+            )}
+          </div>
+        </article>
+
+        <section className="solution-panel" aria-label="Решение задачи">
+          <header className="solution-panel__header">
+            <div className="solution-panel__title">
+              <Code2 size={19} aria-hidden="true" />
+              <span>Code</span>
+            </div>
+            <select aria-label="Язык решения" defaultValue={primaryLanguage?.id ?? ''}>
+              {task.supportedLanguages.length === 0 && <option value="">Language</option>}
+              {task.supportedLanguages.map((language) => (
+                <option value={language.id} key={language.id}>
+                  {language.name}
+                </option>
+              ))}
+            </select>
+          </header>
+
+          <textarea
+            className="code-editor"
+            value={solutionCode}
+            onChange={(event) => setSolutionCode(event.target.value)}
+            spellCheck={false}
+            placeholder="Напишите решение здесь. Отправка в Judge0 будет подключена следующим шагом."
+          />
+
+          <footer className="judge-panel">
+            <div className="judge-panel__tabs">
+              <button className="judge-tab judge-tab--active" type="button">
+                <Terminal size={16} aria-hidden="true" />
+                Testcase
+              </button>
+              <button className="judge-tab" type="button" disabled>
+                Test Result
+              </button>
+            </div>
+            <div className="judge-panel__body">
+              <span>Тест-кейсы будут загружаться вместе с проверкой решений.</span>
+            </div>
+          </footer>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function App() {
   const [activeSection, setActiveSection] = useState<AppSection>('tasks');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -389,7 +579,9 @@ function App() {
           <span className="top-bar__name">EduTask</span>
         </div>
 
-        {activeSection === 'tasks' ? (
+        {activeSection === 'tasks' && selectedTaskId ? (
+          <TaskDetailView taskId={selectedTaskId} onBack={() => setSelectedTaskId(null)} />
+        ) : activeSection === 'tasks' ? (
           <>
             <header className="workspace__header">
               <div>
@@ -461,7 +653,19 @@ function App() {
                   </div>
 
                   {tasks.map((task) => (
-                    <article className="task-row" key={task.id} role="row">
+                    <article
+                      className="task-row task-row--interactive"
+                      key={task.id}
+                      role="row"
+                      tabIndex={0}
+                      onClick={() => setSelectedTaskId(task.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedTaskId(task.id);
+                        }
+                      }}
+                    >
                       <h2 role="cell">{task.title}</h2>
                       <span className={difficultyClassNames[task.difficulty]} role="cell">
                         {difficultyLabels[task.difficulty]}
@@ -509,7 +713,10 @@ function App() {
         <button
           className={`side-nav__item ${activeSection === 'tasks' ? 'side-nav__item--active' : ''}`}
           type="button"
-          onClick={() => setActiveSection('tasks')}
+          onClick={() => {
+            setActiveSection('tasks');
+            setSelectedTaskId(null);
+          }}
           aria-label="Банк задач"
           title="Банк задач"
         >
@@ -518,7 +725,10 @@ function App() {
         <button
           className={`side-nav__item ${activeSection === 'topics' ? 'side-nav__item--active' : ''}`}
           type="button"
-          onClick={() => setActiveSection('topics')}
+          onClick={() => {
+            setActiveSection('topics');
+            setSelectedTaskId(null);
+          }}
           aria-label="Темы"
           title="Темы"
         >
