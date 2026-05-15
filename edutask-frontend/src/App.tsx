@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
+import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { createTask, getTask, getTasks } from './api/tasks';
 import { getTopics } from './api/topics';
 import { resolveCurrentAuthorId } from './auth/currentUser';
@@ -56,8 +57,6 @@ const markdownEditorExtraCommands = [
   markdownCommands.codePreview,
   markdownCommands.fullscreen,
 ];
-
-type AppSection = 'tasks' | 'topics';
 
 type TaskFormState = {
   title: string;
@@ -275,18 +274,21 @@ function TopicsView() {
   );
 }
 
-type TaskDetailViewProps = {
-  taskId: string;
-  onBack: () => void;
-};
-
-function TaskDetailView({ taskId, onBack }: TaskDetailViewProps) {
+function TaskDetailView() {
+  const navigate = useNavigate();
+  const { taskId } = useParams<{ taskId: string }>();
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [isTaskLoading, setIsTaskLoading] = useState(true);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [solutionCode, setSolutionCode] = useState('');
 
   const loadTask = useCallback(async () => {
+    if (!taskId) {
+      setTaskError('Не указан идентификатор задачи');
+      setIsTaskLoading(false);
+      return;
+    }
+
     setIsTaskLoading(true);
     setTaskError(null);
 
@@ -329,7 +331,7 @@ function TaskDetailView({ taskId, onBack }: TaskDetailViewProps) {
   return (
     <section className="task-detail" aria-labelledby="page-title">
       <header className="task-detail__topbar">
-        <button className="task-detail__back" type="button" onClick={onBack}>
+        <button className="task-detail__back" type="button" onClick={() => navigate('/tasks')}>
           <ArrowLeft size={18} aria-hidden="true" />
           <span>Список задач</span>
         </button>
@@ -441,8 +443,6 @@ function TaskDetailView({ taskId, onBack }: TaskDetailViewProps) {
 }
 
 function App() {
-  const [activeSection, setActiveSection] = useState<AppSection>('tasks');
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -605,10 +605,12 @@ function App() {
           <span className="top-bar__name">EduTask</span>
         </div>
 
-        {activeSection === 'tasks' && selectedTaskId ? (
-          <TaskDetailView taskId={selectedTaskId} onBack={() => setSelectedTaskId(null)} />
-        ) : activeSection === 'tasks' ? (
-          <>
+        <Routes>
+          <Route path="/" element={<Navigate to="/tasks" replace />} />
+          <Route
+            path="/tasks"
+            element={
+              <>
             <header className="workspace__header">
               <div>
                 <h1 id="page-title">Банк задач</h1>
@@ -679,24 +681,16 @@ function App() {
                   </div>
 
                   {tasks.map((task) => (
-                    <article
+                    <Link
                       className="task-row task-row--interactive"
                       key={task.id}
-                      role="row"
-                      tabIndex={0}
-                      onClick={() => setSelectedTaskId(task.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setSelectedTaskId(task.id);
-                        }
-                      }}
+                      to={`/tasks/${task.id}`}
                     >
-                      <h2 role="cell">{task.title}</h2>
-                      <span className={difficultyClassNames[task.difficulty]} role="cell">
+                      <h2>{task.title}</h2>
+                      <span className={difficultyClassNames[task.difficulty]}>
                         {difficultyLabels[task.difficulty]}
                       </span>
-                    </article>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -729,37 +723,32 @@ function App() {
                 <ChevronRight size={18} aria-hidden="true" />
               </button>
             </nav>
-          </>
-        ) : (
-          <TopicsView />
-        )}
+              </>
+            }
+          />
+          <Route path="/tasks/:taskId" element={<TaskDetailView />} />
+          <Route path="/topics" element={<TopicsView />} />
+          <Route path="*" element={<Navigate to="/tasks" replace />} />
+        </Routes>
       </section>
 
       <aside className="side-nav" aria-label="Основные разделы">
-        <button
-          className={`side-nav__item ${activeSection === 'tasks' ? 'side-nav__item--active' : ''}`}
-          type="button"
-          onClick={() => {
-            setActiveSection('tasks');
-            setSelectedTaskId(null);
-          }}
+        <NavLink
+          className={({ isActive }) => `side-nav__item ${isActive ? 'side-nav__item--active' : ''}`}
+          to="/tasks"
           aria-label="Банк задач"
           title="Банк задач"
         >
           <ClipboardList size={22} aria-hidden="true" />
-        </button>
-        <button
-          className={`side-nav__item ${activeSection === 'topics' ? 'side-nav__item--active' : ''}`}
-          type="button"
-          onClick={() => {
-            setActiveSection('topics');
-            setSelectedTaskId(null);
-          }}
+        </NavLink>
+        <NavLink
+          className={({ isActive }) => `side-nav__item ${isActive ? 'side-nav__item--active' : ''}`}
+          to="/topics"
           aria-label="Темы"
           title="Темы"
         >
           <Tags size={22} aria-hidden="true" />
-        </button>
+        </NavLink>
         <button className="side-nav__item" type="button" aria-label="Чат с LLM" title="Чат с LLM" disabled>
           <BotMessageSquare size={22} aria-hidden="true" />
         </button>
