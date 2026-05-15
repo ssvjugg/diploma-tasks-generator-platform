@@ -17,6 +17,7 @@ import {
   Terminal,
   X,
 } from 'lucide-react';
+import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { createTask, getTask, getTasks } from './api/tasks';
 import { getTopics } from './api/topics';
@@ -32,6 +33,29 @@ const MarkdownPreview = lazy(async () => {
   const module = await import('@uiw/react-md-editor');
   return { default: module.default.Markdown };
 });
+
+const markdownEditorCommands = [
+  markdownCommands.bold,
+  markdownCommands.italic,
+  markdownCommands.strikethrough,
+  markdownCommands.hr,
+  markdownCommands.title,
+  markdownCommands.divider,
+  markdownCommands.link,
+  markdownCommands.quote,
+  markdownCommands.code,
+  markdownCommands.codeBlock,
+  markdownCommands.table,
+  markdownCommands.divider,
+  markdownCommands.unorderedListCommand,
+  markdownCommands.orderedListCommand,
+];
+
+const markdownEditorExtraCommands = [
+  markdownCommands.codeEdit,
+  markdownCommands.codePreview,
+  markdownCommands.fullscreen,
+];
 
 type AppSection = 'tasks' | 'topics';
 
@@ -86,6 +110,8 @@ function MarkdownField({ label, value, rows = 4, required, onChange }: MarkdownF
             onChange={(nextValue) => onChange(nextValue ?? '')}
             height={rows * 48}
             preview="edit"
+            commands={markdownEditorCommands}
+            extraCommands={markdownEditorExtraCommands}
             textareaProps={{
               required,
               'aria-label': label,
