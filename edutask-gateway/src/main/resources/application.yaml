@@ -1,3 +1,18 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: edutask-gateway
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          enabled: true
+          routes:
+            - id: edutask-core-api
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/v1/**
+
