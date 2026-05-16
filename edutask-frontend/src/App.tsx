@@ -1,29 +1,62 @@
 import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   BotMessageSquare,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  Code2,
   LoaderCircle,
+  MessageSquarePlus,
   Plus,
+  Play,
   Search,
+  Send,
   Sparkles,
   Tags,
+  Terminal,
   X,
 } from 'lucide-react';
+import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
-import { createTask, getTasks } from './api/tasks';
+import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { createTask, getTask, getTasks } from './api/tasks';
 import { getTopics } from './api/topics';
 import { resolveCurrentAuthorId } from './auth/currentUser';
 import type { PageResponse } from './types/page';
-import type { TaskCreateRequest, TaskDifficulty, TaskSummary } from './types/task';
+import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary } from './types/task';
 import type { Topic } from './types/topic';
 
 const TASKS_PAGE_SIZE = 20;
 const TOPICS_PAGE_SIZE = 12;
 const MarkdownEditor = lazy(() => import('@uiw/react-md-editor'));
+const MarkdownPreview = lazy(async () => {
+  const module = await import('@uiw/react-md-editor');
+  return { default: module.default.Markdown };
+});
 
-type AppSection = 'tasks' | 'topics';
+const markdownEditorCommands = [
+  markdownCommands.bold,
+  markdownCommands.italic,
+  markdownCommands.strikethrough,
+  markdownCommands.hr,
+  markdownCommands.title,
+  markdownCommands.divider,
+  markdownCommands.link,
+  markdownCommands.quote,
+  markdownCommands.code,
+  markdownCommands.codeBlock,
+  markdownCommands.table,
+  markdownCommands.divider,
+  markdownCommands.unorderedListCommand,
+  markdownCommands.orderedListCommand,
+];
+
+const markdownEditorExtraCommands = [
+  markdownCommands.codeEdit,
+  markdownCommands.codePreview,
+  markdownCommands.fullscreen,
+];
 
 type TaskFormState = {
   title: string;
@@ -76,6 +109,8 @@ function MarkdownField({ label, value, rows = 4, required, onChange }: MarkdownF
             onChange={(nextValue) => onChange(nextValue ?? '')}
             height={rows * 48}
             preview="edit"
+            commands={markdownEditorCommands}
+            extraCommands={markdownEditorExtraCommands}
             textareaProps={{
               required,
               'aria-label': label,
@@ -84,6 +119,20 @@ function MarkdownField({ label, value, rows = 4, required, onChange }: MarkdownF
         </Suspense>
       </div>
     </label>
+  );
+}
+
+type MarkdownBlockProps = {
+  source: string;
+};
+
+function MarkdownBlock({ source }: MarkdownBlockProps) {
+  return (
+    <div className="problem-markdown" data-color-mode="light">
+      <Suspense fallback={<div className="problem-markdown__fallback">Загрузка текста</div>}>
+        <MarkdownPreview source={source} />
+      </Suspense>
+    </div>
   );
 }
 
@@ -225,8 +274,336 @@ function TopicsView() {
   );
 }
 
+type TasksListViewProps = {
+  tasksPage: PageResponse<TaskSummary> | null;
+  tasks: TaskSummary[];
+  query: string;
+  currentPage: number;
+  isLoading: boolean;
+  error: string | null;
+  onQueryChange: (value: string) => void;
+  onCreateTaskClick: () => void;
+  onLoadTasks: (page: number) => Promise<void>;
+  onPreviousPage: () => void;
+  onNextPage: () => void;
+};
+
+function TasksListView({
+  tasksPage,
+  tasks,
+  query,
+  currentPage,
+  isLoading,
+  error,
+  onQueryChange,
+  onCreateTaskClick,
+  onLoadTasks,
+  onPreviousPage,
+  onNextPage,
+}: TasksListViewProps) {
+  const totalPages = tasksPage?.totalPages ?? 0;
+  const displayedPageNumber = totalPages === 0 ? 0 : currentPage + 1;
+  const isLastPage = tasksPage?.last ?? true;
+  const canGoBack = !isLoading && !error && currentPage > 0;
+  const canGoForward = !isLoading && !error && !isLastPage;
+
+  return (
+    <>
+      <header className="workspace__header">
+        <div>
+          <h1 id="page-title">Банк задач</h1>
+          <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
+        </div>
+
+        <button className="icon-button icon-button--labeled icon-button--primary" type="button" onClick={onCreateTaskClick}>
+          <Plus size={18} aria-hidden="true" />
+          <span>Создать</span>
+        </button>
+      </header>
+
+      <div className="list-toolbar">
+        <label className="search-field">
+          <Search size={18} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Поиск по названию"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+          />
+        </label>
+        <div className="list-toolbar__stats" aria-label="Сводка банка задач">
+          <span>{tasksPage?.totalElements ?? 0} всего</span>
+          <span>{tasks.length} показано</span>
+          <span>{TASKS_PAGE_SIZE} на странице</span>
+        </div>
+      </div>
+
+      <section className="task-list" aria-label="Список задач">
+        {isLoading && (
+          <div className="state-view">
+            <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+            <span>Загрузка задач</span>
+          </div>
+        )}
+
+        {!isLoading && error && (
+          <div className="state-view state-view--error">
+            <span>{error}</span>
+            <button className="text-button" type="button" onClick={() => onLoadTasks(currentPage)}>
+              Повторить
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length === 0 && !query && (
+          <div className="state-view">
+            <span>Задач пока нет</span>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length === 0 && query && (
+          <div className="state-view">
+            <span>По этому запросу задач не найдено</span>
+          </div>
+        )}
+
+        {!isLoading && !error && tasks.length > 0 && (
+          <div className="task-table" aria-label="Задачи">
+            <div className="task-table__header" aria-hidden="true">
+              <span>Название</span>
+              <span>Сложность</span>
+            </div>
+
+            {tasks.map((task) => (
+              <Link className="task-row task-row--interactive" key={task.id} to={`/tasks/${task.id}`}>
+                <h2>{task.title}</h2>
+                <span className={difficultyClassNames[task.difficulty]}>{difficultyLabels[task.difficulty]}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <nav className="pagination" aria-label="Пагинация задач">
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={onPreviousPage}
+          disabled={!canGoBack}
+          aria-label="Предыдущая страница"
+          title="Предыдущая страница"
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+
+        <span className="pagination__status">
+          Страница {displayedPageNumber} из {totalPages}
+        </span>
+
+        <button
+          className="pagination__button"
+          type="button"
+          onClick={onNextPage}
+          disabled={!canGoForward}
+          aria-label="Следующая страница"
+          title="Следующая страница"
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
+      </nav>
+    </>
+  );
+}
+
+function TaskDetailView() {
+  const navigate = useNavigate();
+  const { taskId } = useParams<{ taskId: string }>();
+  const [task, setTask] = useState<TaskResponse | null>(null);
+  const [isTaskLoading, setIsTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState<string | null>(null);
+  const [solutionCode, setSolutionCode] = useState('');
+
+  const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
+    if (!taskId) {
+      if (shouldApplyResult()) {
+        setTaskError('Не указан идентификатор задачи');
+        setIsTaskLoading(false);
+      }
+      return;
+    }
+
+    if (shouldApplyResult()) {
+      setIsTaskLoading(true);
+      setTaskError(null);
+    }
+
+    try {
+      const data = await getTask(taskId, { signal });
+      if (shouldApplyResult()) {
+        setTask(data);
+      }
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
+      if (shouldApplyResult()) {
+        setTaskError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачу');
+      }
+    } finally {
+      if (!signal?.aborted && shouldApplyResult()) {
+        setIsTaskLoading(false);
+      }
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isActive = true;
+    void loadTask(controller.signal, () => isActive);
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [loadTask]);
+
+  if (isTaskLoading) {
+    return (
+      <div className="state-view task-detail-state">
+        <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+        <span>Загрузка задачи</span>
+      </div>
+    );
+  }
+
+  if (taskError || !task) {
+    return (
+      <div className="state-view state-view--error task-detail-state">
+        <span>{taskError ?? 'Задача не найдена'}</span>
+        <button className="text-button" type="button" onClick={() => loadTask()}>
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
+  const primaryLanguage = task.supportedLanguages[0];
+
+  return (
+    <section className="task-detail" aria-labelledby="page-title">
+      <header className="task-detail__topbar">
+        <button className="task-detail__back" type="button" onClick={() => navigate('/tasks')}>
+          <ArrowLeft size={18} aria-hidden="true" />
+          <span>Список задач</span>
+        </button>
+
+        <div className="task-detail__actions" aria-label="Действия с задачей">
+          <button className="secondary-button secondary-button--icon" type="button" disabled>
+            <MessageSquarePlus size={17} aria-hidden="true" />
+            <span>AI</span>
+          </button>
+          <button className="secondary-button secondary-button--icon" type="button" disabled>
+            <Play size={17} aria-hidden="true" />
+            <span>Run</span>
+          </button>
+          <button className="text-button text-button--icon" type="button" disabled>
+            <Send size={17} aria-hidden="true" />
+            <span>Submit</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="task-detail__grid">
+        <article className="problem-panel">
+          <div className="panel-tabs" aria-label="Разделы задачи">
+            <button className="panel-tab panel-tab--active" type="button">
+              Описание
+            </button>
+            <button className="panel-tab" type="button" disabled>
+              Обсуждение с AI
+            </button>
+            <button className="panel-tab" type="button" disabled>
+              Отправки
+            </button>
+          </div>
+
+          <div className="problem-content">
+            <h1 id="page-title">{task.title}</h1>
+            <div className="problem-chips">
+              <span className={difficultyClassNames[task.difficulty]}>{difficultyLabels[task.difficulty]}</span>
+              {task.topics.map((topic) => (
+                <span className="problem-chip" key={topic.id}>
+                  {topic.name}
+                </span>
+              ))}
+            </div>
+
+            <section className="problem-section">
+              <h2>Условие</h2>
+              <MarkdownBlock source={task.statement} />
+            </section>
+
+            {task.inputFormat && (
+              <section className="problem-section">
+                <h2>Входные данные</h2>
+                <MarkdownBlock source={task.inputFormat} />
+              </section>
+            )}
+
+            {task.outputFormat && (
+              <section className="problem-section">
+                <h2>Выходные данные</h2>
+                <MarkdownBlock source={task.outputFormat} />
+              </section>
+            )}
+          </div>
+        </article>
+
+        <section className="solution-panel" aria-label="Решение задачи">
+          <header className="solution-panel__header">
+            <div className="solution-panel__title">
+              <Code2 size={19} aria-hidden="true" />
+              <span>Code</span>
+            </div>
+            <select aria-label="Язык решения" defaultValue={primaryLanguage?.id ?? ''}>
+              {task.supportedLanguages.length === 0 && <option value="">Language</option>}
+              {task.supportedLanguages.map((language) => (
+                <option value={language.id} key={language.id}>
+                  {language.name}
+                </option>
+              ))}
+            </select>
+          </header>
+
+          <textarea
+            className="code-editor"
+            value={solutionCode}
+            onChange={(event) => setSolutionCode(event.target.value)}
+            spellCheck={false}
+            placeholder="Напишите решение здесь. Отправка в Judge0 будет подключена следующим шагом."
+          />
+
+          <footer className="judge-panel">
+            <div className="judge-panel__tabs">
+              <button className="judge-tab judge-tab--active" type="button">
+                <Terminal size={16} aria-hidden="true" />
+                Testcase
+              </button>
+              <button className="judge-tab" type="button" disabled>
+                Test Result
+              </button>
+            </div>
+            <div className="judge-panel__body">
+              <span>Тест-кейсы будут загружаться вместе с проверкой решений.</span>
+            </div>
+          </footer>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 function App() {
-  const [activeSection, setActiveSection] = useState<AppSection>('tasks');
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -296,11 +673,7 @@ function App() {
     return source.filter((task) => task.title.toLowerCase().includes(normalizedQuery));
   }, [query, tasksPage]);
 
-  const totalPages = tasksPage?.totalPages ?? 0;
-  const displayedPageNumber = totalPages === 0 ? 0 : currentPage + 1;
   const isLastPage = tasksPage?.last ?? true;
-  const canGoBack = !isLoading && !error && currentPage > 0;
-  const canGoForward = !isLoading && !error && !isLastPage;
 
   const goToPreviousPage = () => {
     setCurrentPage((page) => Math.max(page - 1, 0));
@@ -389,141 +762,49 @@ function App() {
           <span className="top-bar__name">EduTask</span>
         </div>
 
-        {activeSection === 'tasks' ? (
-          <>
-            <header className="workspace__header">
-              <div>
-                <h1 id="page-title">Банк задач</h1>
-                <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
-              </div>
-
-              <button
-                className="icon-button icon-button--labeled icon-button--primary"
-                type="button"
-                onClick={openCreateForm}
-              >
-                <Plus size={18} aria-hidden="true" />
-                <span>Создать</span>
-              </button>
-            </header>
-
-            <div className="list-toolbar">
-              <label className="search-field">
-                <Search size={18} aria-hidden="true" />
-                <input
-                  type="search"
-                  placeholder="Поиск по названию"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <div className="list-toolbar__stats" aria-label="Сводка банка задач">
-                <span>{tasksPage?.totalElements ?? 0} всего</span>
-                <span>{tasks.length} показано</span>
-                <span>{TASKS_PAGE_SIZE} на странице</span>
-              </div>
-            </div>
-
-            <section className="task-list" aria-label="Список задач">
-              {isLoading && (
-                <div className="state-view">
-                  <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
-                  <span>Загрузка задач</span>
-                </div>
-              )}
-
-              {!isLoading && error && (
-                <div className="state-view state-view--error">
-                  <span>{error}</span>
-                  <button className="text-button" type="button" onClick={() => loadTasks(currentPage)}>
-                    Повторить
-                  </button>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length === 0 && !query && (
-                <div className="state-view">
-                  <span>Задач пока нет</span>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length === 0 && query && (
-                <div className="state-view">
-                  <span>По этому запросу задач не найдено</span>
-                </div>
-              )}
-
-              {!isLoading && !error && tasks.length > 0 && (
-                <div className="task-table" role="table" aria-label="Задачи">
-                  <div className="task-table__header" role="row">
-                    <span role="columnheader">Название</span>
-                    <span role="columnheader">Сложность</span>
-                  </div>
-
-                  {tasks.map((task) => (
-                    <article className="task-row" key={task.id} role="row">
-                      <h2 role="cell">{task.title}</h2>
-                      <span className={difficultyClassNames[task.difficulty]} role="cell">
-                        {difficultyLabels[task.difficulty]}
-                      </span>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <nav className="pagination" aria-label="Пагинация задач">
-              <button
-                className="pagination__button"
-                type="button"
-                onClick={goToPreviousPage}
-                disabled={!canGoBack}
-                aria-label="Предыдущая страница"
-                title="Предыдущая страница"
-              >
-                <ChevronLeft size={18} aria-hidden="true" />
-              </button>
-
-              <span className="pagination__status">
-                Страница {displayedPageNumber} из {totalPages}
-              </span>
-
-              <button
-                className="pagination__button"
-                type="button"
-                onClick={goToNextPage}
-                disabled={!canGoForward}
-                aria-label="Следующая страница"
-                title="Следующая страница"
-              >
-                <ChevronRight size={18} aria-hidden="true" />
-              </button>
-            </nav>
-          </>
-        ) : (
-          <TopicsView />
-        )}
+        <Routes>
+          <Route path="/" element={<Navigate to="/tasks" replace />} />
+          <Route
+            path="/tasks"
+            element={
+              <TasksListView
+                tasksPage={tasksPage}
+                tasks={tasks}
+                query={query}
+                currentPage={currentPage}
+                isLoading={isLoading}
+                error={error}
+                onQueryChange={setQuery}
+                onCreateTaskClick={openCreateForm}
+                onLoadTasks={loadTasks}
+                onPreviousPage={goToPreviousPage}
+                onNextPage={goToNextPage}
+              />
+            }
+          />
+          <Route path="/tasks/:taskId" element={<TaskDetailView />} />
+          <Route path="/topics" element={<TopicsView />} />
+          <Route path="*" element={<Navigate to="/tasks" replace />} />
+        </Routes>
       </section>
 
       <aside className="side-nav" aria-label="Основные разделы">
-        <button
-          className={`side-nav__item ${activeSection === 'tasks' ? 'side-nav__item--active' : ''}`}
-          type="button"
-          onClick={() => setActiveSection('tasks')}
+        <NavLink
+          className={({ isActive }) => `side-nav__item ${isActive ? 'side-nav__item--active' : ''}`}
+          to="/tasks"
           aria-label="Банк задач"
           title="Банк задач"
         >
           <ClipboardList size={22} aria-hidden="true" />
-        </button>
-        <button
-          className={`side-nav__item ${activeSection === 'topics' ? 'side-nav__item--active' : ''}`}
-          type="button"
-          onClick={() => setActiveSection('topics')}
+        </NavLink>
+        <NavLink
+          className={({ isActive }) => `side-nav__item ${isActive ? 'side-nav__item--active' : ''}`}
+          to="/topics"
           aria-label="Темы"
           title="Темы"
         >
           <Tags size={22} aria-hidden="true" />
-        </button>
+        </NavLink>
         <button className="side-nav__item" type="button" aria-label="Чат с LLM" title="Чат с LLM" disabled>
           <BotMessageSquare size={22} aria-hidden="true" />
         </button>

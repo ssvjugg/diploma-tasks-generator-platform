@@ -1,5 +1,5 @@
 import type { PageResponse } from '../types/page';
-import type { TaskCreateRequest, TaskSummary } from '../types/task';
+import type { TaskCreateRequest, TaskResponse, TaskSummary } from '../types/task';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
@@ -22,6 +22,25 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
 
   if (!response.ok) {
     throw new Error(`Не удалось получить задачи: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+type RequestOptions = {
+  signal?: AbortSignal;
+};
+
+export async function getTask(id: string, options: RequestOptions = {}): Promise<TaskResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${id}`, {
+    signal: options.signal,
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не удалось получить задачу: ${response.status}`);
   }
 
   return response.json();
