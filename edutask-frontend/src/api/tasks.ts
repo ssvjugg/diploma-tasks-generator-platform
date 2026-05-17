@@ -1,7 +1,6 @@
 import type { PageResponse } from '../types/page';
 import type { TaskCreateRequest, TaskResponse, TaskSummary } from '../types/task';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { apiFetch } from './client';
 
 type GetTasksParams = {
   page?: number;
@@ -14,11 +13,7 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
     size: String(params.size ?? 20),
   });
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/tasks?${searchParams.toString()}`, {
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+  const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`);
 
   if (!response.ok) {
     throw new Error(`Не удалось получить задачи: ${response.status}`);
@@ -32,11 +27,8 @@ type RequestOptions = {
 };
 
 export async function getTask(id: string, options: RequestOptions = {}): Promise<TaskResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/tasks/${id}`, {
+  const response = await apiFetch(`/api/v1/tasks/${id}`, {
     signal: options.signal,
-    headers: {
-      Accept: 'application/json',
-    },
   });
 
   if (!response.ok) {
@@ -47,10 +39,9 @@ export async function getTask(id: string, options: RequestOptions = {}): Promise
 }
 
 export async function createTask(payload: TaskCreateRequest): Promise<unknown> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/tasks`, {
+  const response = await apiFetch('/api/v1/tasks', {
     method: 'POST',
     headers: {
-      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),

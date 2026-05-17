@@ -32,6 +32,10 @@ textarea {
   min-height: 100vh;
 }
 
+.app-shell--auth {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .workspace {
   width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
@@ -41,10 +45,28 @@ textarea {
 .top-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   min-height: 48px;
   margin-bottom: 22px;
   border-bottom: 1px solid #e5e5e5;
+}
+
+.top-bar__brand,
+.top-bar__account,
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.top-bar__brand {
+  min-width: 0;
+  gap: 10px;
+}
+
+.top-bar__account {
+  min-width: 0;
+  gap: 8px;
 }
 
 .brand-mark {
@@ -57,6 +79,64 @@ textarea {
 .top-bar__name {
   color: #1f1f1f;
   font-weight: 800;
+}
+
+.account-chip {
+  max-width: min(420px, 42vw);
+  min-height: 34px;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  color: #525252;
+  background: #ffffff;
+  font-size: 0.88rem;
+}
+
+.account-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-chip strong {
+  flex: 0 0 auto;
+  color: #262626;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.auth-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-screen__mark {
+  position: fixed;
+  top: 20px;
+  left: 24px;
+}
+
+.auth-panel {
+  display: grid;
+  width: min(380px, 100%);
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.auth-panel h1 {
+  font-size: 2rem;
+}
+
+.auth-panel p {
+  color: #737373;
+  line-height: 1.5;
 }
 
 .workspace__header {
@@ -1000,9 +1080,28 @@ h1 {
     padding-bottom: 72px;
   }
 
+  .app-shell--auth {
+    padding-bottom: 0;
+  }
+
   .workspace {
     width: min(100% - 28px, 1180px);
     padding: 14px 0 28px;
+  }
+
+  .top-bar {
+    align-items: stretch;
+    flex-direction: column;
+    padding-bottom: 12px;
+  }
+
+  .top-bar__account {
+    width: 100%;
+  }
+
+  .account-chip {
+    max-width: none;
+    flex: 1;
   }
 
   .workspace__header {

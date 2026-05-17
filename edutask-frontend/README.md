@@ -26,13 +26,13 @@ npm run dev
 VITE_API_PROXY_TARGET=http://localhost:8081 npm run dev
 ```
 
-Для создания задач в dev-режиме используется UUID существующего `user_profile`:
+Для локального входа через Keycloak используются значения по умолчанию:
 
 ```bash
-VITE_DEV_AUTHOR_ID=11111111-1111-1111-1111-111111111111 npm run dev
+VITE_KEYCLOAK_URL=http://localhost:8085
+VITE_KEYCLOAK_REALM=edutask
+VITE_KEYCLOAK_CLIENT_ID=edutask-frontend
 ```
-
-Если переменную не задавать, frontend использует этот же dev UUID по умолчанию.
 
 ### Через Docker
 
@@ -40,7 +40,9 @@ VITE_DEV_AUTHOR_ID=11111111-1111-1111-1111-111111111111 npm run dev
 
 ```bash
 docker build \
-  --build-arg VITE_DEV_AUTHOR_ID=11111111-1111-1111-1111-111111111111 \
+  --build-arg VITE_KEYCLOAK_URL=http://localhost:8085 \
+  --build-arg VITE_KEYCLOAK_REALM=edutask \
+  --build-arg VITE_KEYCLOAK_CLIENT_ID=edutask-frontend \
   -t edutask-frontend ./edutask-frontend
 docker run --rm -p 3000:80 \
   -e API_UPSTREAM=http://host.docker.internal:8080 \
@@ -56,5 +58,3 @@ docker compose up --build frontend
 ```
 
 `API_UPSTREAM` указывает, куда Nginx проксирует `/api/**`. Сейчас значение по умолчанию подходит для backend, запущенного на хосте на порту `8080`. Когда gateway появится в compose как сервис, можно заменить значение на адрес сервиса, например `http://edutask-gateway:8080`.
-
-`VITE_DEV_AUTHOR_ID` нужен только до подключения авторизации. Позже frontend будет брать автора из текущей сессии.
