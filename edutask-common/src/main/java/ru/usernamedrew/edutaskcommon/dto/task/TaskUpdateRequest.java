@@ -29,7 +29,7 @@ public record TaskUpdateRequest(
     @Schema(description = "Сложность задачи", example = "MEDIUM")
     TaskDifficulty difficulty,
 
-    @Schema(description = "Идентификатор автора")
+    @Schema(description = "Идентификатор автора. Изменение доступно только ADMIN.")
     UUID authorId,
 
     @Schema(description = "Идентификаторы тем. Пустой массив очищает список тем.")

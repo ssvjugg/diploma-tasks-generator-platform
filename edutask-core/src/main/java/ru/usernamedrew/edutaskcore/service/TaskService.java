@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskCreateRequest;
@@ -13,6 +15,7 @@ import ru.usernamedrew.edutaskcommon.dto.task.TaskSummary;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskUpdateRequest;
 import ru.usernamedrew.edutaskcore.entity.ProgrammingLanguage;
 import ru.usernamedrew.edutaskcore.entity.Task;
+import ru.usernamedrew.edutaskcore.entity.UserProfile;
 import ru.usernamedrew.edutaskcore.exception.ResourceNotFoundException;
 import ru.usernamedrew.edutaskcore.mapper.TaskMapper;
 import ru.usernamedrew.edutaskcore.repository.ProgrammingLanguageRepository;
@@ -37,6 +40,7 @@ public class TaskService {
     private final UserProfileRepository userProfileRepository;
     private final ProgrammingLanguageRepository programmingLanguageRepository;
     private final TopicService topicService;
+    private final UserProfileService userProfileService;
     private final TaskMapper taskMapper;
 
     @Transactional(readOnly = true)
@@ -70,15 +74,15 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse createTask(TaskCreateRequest request) {
+    public TaskResponse createTask(TaskCreateRequest request, Jwt jwt) {
+        UserProfile author = userProfileService.resolveCurrentUser(jwt);
         Task task = new Task();
         task.setTitle(request.title().trim());
         task.setStatement(request.statement().trim());
         task.setInputFormat(request.inputFormat());
         task.setOutputFormat(request.outputFormat());
         task.setDifficulty(request.difficulty());
-        task.setAuthor(userProfileRepository.findById(request.authorId())
-            .orElseThrow(() -> new ResourceNotFoundException("UserProfile not found: " + request.authorId())));
+        task.setAuthor(author);
         task.setTopics(topicService.resolveTopics(request.topicIds()));
         task.setSupportedLanguages(resolveLanguages(request.languageIds()));
 
@@ -87,7 +91,7 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse patchTask(UUID id, TaskUpdateRequest request) {
+    public TaskResponse patchTask(UUID id, TaskUpdateRequest request, boolean canChangeAuthor) {
         Task task = findDetailedTask(id);
 
         if (request.title() != null) {
@@ -106,6 +110,9 @@ public class TaskService {
             task.setDifficulty(request.difficulty());
         }
         if (request.authorId() != null) {
+            if (!canChangeAuthor) {
+                throw new AccessDeniedException("Only ADMIN can change task author");
+            }
             task.setAuthor(userProfileRepository.findById(request.authorId())
                 .orElseThrow(() -> new ResourceNotFoundException("UserProfile not found: " + request.authorId())));
         }

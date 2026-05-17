@@ -13,6 +13,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -44,6 +49,7 @@ public class TaskController {
     )
     @ApiResponse(responseCode = "200", description = "Список задач получен")
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public Page<TaskSummary> getTasks(
         @ParameterObject TaskSearchRequest request,
         @ParameterObject @PageableDefault(size = 20, sort = "title") Pageable pageable
@@ -57,6 +63,7 @@ public class TaskController {
     )
     @ApiResponse(responseCode = "200", description = "Список задач получен")
     @PostMapping("/search")
+    @PreAuthorize("isAuthenticated()")
     public Page<TaskSummary> searchTasks(
         @Valid @RequestBody TaskSearchRequest request,
         @ParameterObject @PageableDefault(size = 20, sort = "title") Pageable pageable
@@ -70,6 +77,7 @@ public class TaskController {
         @ApiResponse(responseCode = "404", description = "Задача не найдена", content = @Content(schema = @Schema(hidden = true)))
     })
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public TaskResponse getTask(@PathVariable UUID id) {
         return taskService.getTask(id);
     }
@@ -82,8 +90,9 @@ public class TaskController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public TaskResponse createTask(@Valid @RequestBody TaskCreateRequest request) {
-        return taskService.createTask(request);
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    public TaskResponse createTask(@Valid @RequestBody TaskCreateRequest request, @AuthenticationPrincipal Jwt jwt) {
+        return taskService.createTask(request, jwt);
     }
 
     @Operation(
@@ -96,8 +105,13 @@ public class TaskController {
         @ApiResponse(responseCode = "404", description = "Задача, автор, тема или язык не найдены", content = @Content(schema = @Schema(hidden = true)))
     })
     @PatchMapping("/{id}")
-    public TaskResponse patchTask(@PathVariable UUID id, @Valid @RequestBody TaskUpdateRequest request) {
-        return taskService.patchTask(id, request);
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
+    public TaskResponse patchTask(
+        @PathVariable UUID id,
+        @Valid @RequestBody TaskUpdateRequest request,
+        Authentication authentication
+    ) {
+        return taskService.patchTask(id, request, hasRole(authentication, "ROLE_ADMIN"));
     }
 
     @Operation(summary = "Удалить задачу", description = "Удаляет задачу. Связанные тест-кейсы удаляются каскадно на уровне БД.")
@@ -107,7 +121,17 @@ public class TaskController {
     })
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public void deleteTask(@PathVariable UUID id) {
         taskService.deleteTask(id);
+    }
+
+    private boolean hasRole(Authentication authentication, String role) {
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .anyMatch(role::equals);
     }
 }
