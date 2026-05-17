@@ -1,4 +1,4 @@
-import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BotMessageSquare,
@@ -662,6 +662,7 @@ function TaskDetailView() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editNote, setEditNote] = useState<string | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const taskMenuRef = useRef<HTMLDivElement | null>(null);
 
   const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
     if (!taskId) {
@@ -706,6 +707,26 @@ function TaskDetailView() {
       controller.abort();
     };
   }, [loadTask]);
+
+  useEffect(() => {
+    if (!isTaskMenuOpen) {
+      return undefined;
+    }
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+
+      if (target instanceof Node && !taskMenuRef.current?.contains(target)) {
+        setIsTaskMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+    };
+  }, [isTaskMenuOpen]);
 
   const canManageTask = auth.hasRole('TEACHER') || auth.hasRole('ADMIN');
 
@@ -800,7 +821,7 @@ function TaskDetailView() {
 
         <div className="task-detail__actions" aria-label="Действия с задачей">
           {canManageTask && (
-            <div className="task-detail__menu">
+            <div className="task-detail__menu" ref={taskMenuRef}>
               <button
                 className="secondary-button secondary-button--icon secondary-button--square"
                 type="button"
