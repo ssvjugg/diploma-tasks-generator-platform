@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Code2,
+  LogOut,
   LoaderCircle,
   MessageSquarePlus,
   Plus,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   Tags,
   Terminal,
+  UserRound,
   X,
 } from 'lucide-react';
 import * as markdownCommands from '@uiw/react-md-editor/commands';
@@ -22,7 +24,7 @@ import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { createTask, getTask, getTasks } from './api/tasks';
 import { getTopics } from './api/topics';
-import { resolveCurrentAuthorId } from './auth/currentUser';
+import { useAuth } from './auth/AuthContext';
 import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary } from './types/task';
 import type { Topic } from './types/topic';
@@ -286,6 +288,7 @@ type TasksListViewProps = {
   onLoadTasks: (page: number) => Promise<void>;
   onPreviousPage: () => void;
   onNextPage: () => void;
+  canCreateTask: boolean;
 };
 
 function TasksListView({
@@ -300,6 +303,7 @@ function TasksListView({
   onLoadTasks,
   onPreviousPage,
   onNextPage,
+  canCreateTask,
 }: TasksListViewProps) {
   const totalPages = tasksPage?.totalPages ?? 0;
   const displayedPageNumber = totalPages === 0 ? 0 : currentPage + 1;
@@ -315,7 +319,13 @@ function TasksListView({
           <p className="workspace__subtitle">Задачи для уроков программирования и самостоятельной практики.</p>
         </div>
 
-        <button className="icon-button icon-button--labeled icon-button--primary" type="button" onClick={onCreateTaskClick}>
+        <button
+          className="icon-button icon-button--labeled icon-button--primary"
+          type="button"
+          onClick={onCreateTaskClick}
+          disabled={!canCreateTask}
+          title={canCreateTask ? 'Создать задачу' : 'Создание доступно преподавателю или администратору'}
+        >
           <Plus size={18} aria-hidden="true" />
           <span>Создать</span>
         </button>
@@ -604,6 +614,7 @@ function TaskDetailView() {
 }
 
 function App() {
+  const auth = useAuth();
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -623,6 +634,10 @@ function App() {
   }, []);
 
   const loadTasks = useCallback(async (page: number) => {
+    if (!auth.isAuthenticated) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -634,11 +649,21 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [auth.isAuthenticated]);
 
   useEffect(() => {
-    void loadTasks(currentPage);
-  }, [currentPage, loadTasks]);
+    if (auth.isAuthenticated) {
+      void loadTasks(currentPage);
+    }
+  }, [auth.isAuthenticated, currentPage, loadTasks]);
+
+  const { authError, isAuthenticated, isInitializing, login } = auth;
+
+  useEffect(() => {
+    if (!isInitializing && !isAuthenticated && !authError) {
+      void login();
+    }
+  }, [authError, isAuthenticated, isInitializing, login]);
 
   useEffect(() => {
     if (!isCreateFormOpen) {
@@ -686,6 +711,10 @@ function App() {
   };
 
   const openCreateForm = () => {
+    if (!auth.hasRole('TEACHER') && !auth.hasRole('ADMIN')) {
+      setFormError('Создание задач доступно преподавателю или администратору.');
+      return;
+    }
     setIsCreateFormOpen(true);
     setFormError(null);
     setFormNote(null);
@@ -710,19 +739,12 @@ function App() {
       .filter(Number.isFinite);
 
   const buildCreateTaskPayload = (): TaskCreateRequest => {
-    const authorId = resolveCurrentAuthorId();
-
-    if (!authorId) {
-      throw new Error('Не удалось определить текущего пользователя. Для dev-режима задайте VITE_DEV_AUTHOR_ID.');
-    }
-
     return {
       title: taskForm.title.trim(),
       statement: taskForm.statement.trim(),
       inputFormat: taskForm.inputFormat.trim() || undefined,
       outputFormat: taskForm.outputFormat.trim() || undefined,
       difficulty: taskForm.difficulty,
-      authorId,
       topicIds: parseUuidList(taskForm.topicIds),
       languageIds: parseLanguageIds(taskForm.languageIds),
     };
@@ -754,12 +776,60 @@ function App() {
     }
   };
 
+  if (auth.isInitializing) {
+    return (
+      <main className="app-shell app-shell--auth">
+        <section className="auth-screen" aria-live="polite">
+          <img className="brand-mark auth-screen__mark" src="/brand/sfedu-logo.svg" alt="Южный федеральный университет" />
+          <div className="state-view">
+            <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+            <span>Проверка входа</span>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (!auth.isAuthenticated) {
+    return (
+      <main className="app-shell app-shell--auth">
+        <section className="auth-screen" aria-live="polite">
+          <img className="brand-mark auth-screen__mark" src="/brand/sfedu-logo.svg" alt="Южный федеральный университет" />
+          {auth.authError ? (
+            <div className="auth-panel">
+              <h1>EduTask</h1>
+              <p>Не удалось выполнить вход через Keycloak.</p>
+              <p className="form-error">{auth.authError}</p>
+            </div>
+          ) : (
+            <div className="state-view">
+              <LoaderCircle className="state-view__loader" size={28} aria-hidden="true" />
+              <span>Переход к Keycloak</span>
+            </div>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="workspace" aria-labelledby="page-title">
         <div className="top-bar">
-          <img className="brand-mark" src="/brand/sfedu-logo.svg" alt="Южный федеральный университет" />
-          <span className="top-bar__name">EduTask</span>
+          <div className="top-bar__brand">
+            <img className="brand-mark" src="/brand/sfedu-logo.svg" alt="Южный федеральный университет" />
+            <span className="top-bar__name">EduTask</span>
+          </div>
+          <div className="top-bar__account">
+            <span className="account-chip">
+              <UserRound size={16} aria-hidden="true" />
+              <span>{auth.user?.name ?? auth.user?.username ?? auth.user?.email ?? 'Пользователь'}</span>
+              {auth.profile && <strong>{auth.profile.role}</strong>}
+            </span>
+            <button className="icon-button" type="button" onClick={auth.logout} aria-label="Выйти" title="Выйти">
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
         <Routes>
@@ -779,6 +849,7 @@ function App() {
                 onLoadTasks={loadTasks}
                 onPreviousPage={goToPreviousPage}
                 onNextPage={goToNextPage}
+                canCreateTask={auth.hasRole('TEACHER') || auth.hasRole('ADMIN')}
               />
             }
           />

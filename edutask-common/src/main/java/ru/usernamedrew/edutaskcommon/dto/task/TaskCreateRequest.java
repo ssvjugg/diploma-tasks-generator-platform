@@ -29,10 +29,6 @@ public record TaskCreateRequest(
     @NotNull
     TaskDifficulty difficulty,
 
-    @Schema(description = "Идентификатор автора задачи")
-    @NotNull
-    UUID authorId,
-
     @Schema(description = "Идентификаторы тем")
     Set<UUID> topicIds,
 

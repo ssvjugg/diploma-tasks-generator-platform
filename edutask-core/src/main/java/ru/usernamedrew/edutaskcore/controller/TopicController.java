@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,7 @@ public class TopicController {
     )
     @ApiResponse(responseCode = "200", description = "Список тем получен")
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public Page<TopicResponse> getTopics(
         @ParameterObject TopicSearchRequest request,
         @ParameterObject @PageableDefault(size = 20, sort = "name") Pageable pageable
@@ -60,6 +62,7 @@ public class TopicController {
     @Operation(summary = "Найти темы для автодополнения", description = "Возвращает ограниченный список тем по части названия.")
     @ApiResponse(responseCode = "200", description = "Темы найдены")
     @GetMapping("/search")
+    @PreAuthorize("isAuthenticated()")
     public List<TopicSummary> searchTopics(
         @RequestParam(required = false) String query,
         @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit
@@ -73,6 +76,7 @@ public class TopicController {
         @ApiResponse(responseCode = "404", description = "Тема не найдена", content = @Content(schema = @Schema(hidden = true)))
     })
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public TopicResponse getTopic(@PathVariable UUID id) {
         return topicService.getTopic(id);
     }
@@ -85,6 +89,7 @@ public class TopicController {
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public TopicResponse createTopic(@Valid @RequestBody TopicCreateRequest request) {
         return topicService.createTopic(request);
     }
@@ -96,6 +101,7 @@ public class TopicController {
         @ApiResponse(responseCode = "404", description = "Тема или родительская тема не найдена", content = @Content(schema = @Schema(hidden = true)))
     })
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public TopicResponse patchTopic(@PathVariable UUID id, @Valid @RequestBody TopicUpdateRequest request) {
         return topicService.patchTopic(id, request);
     }
@@ -107,6 +113,7 @@ public class TopicController {
     })
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")
     public void deleteTopic(@PathVariable UUID id) {
         topicService.deleteTopic(id);
     }

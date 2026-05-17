@@ -5,6 +5,13 @@ spring:
   application:
     name: edutask-core
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8085/realms/edutask}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8085/realms/edutask/protocol/openid-connect/certs}
+
   datasource:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/edutask-db
@@ -24,3 +31,18 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+edutask:
+  security:
+    keycloak:
+      client-id: ${KEYCLOAK_CLIENT_ID:edutask-frontend}

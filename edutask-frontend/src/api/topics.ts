@@ -1,7 +1,6 @@
 import type { PageResponse } from '../types/page';
 import type { Topic } from '../types/topic';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { apiFetch } from './client';
 
 type GetTopicsParams = {
   page?: number;
@@ -20,11 +19,7 @@ export async function getTopics(params: GetTopicsParams = {}): Promise<PageRespo
     searchParams.set('query', params.query.trim());
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/topics?${searchParams.toString()}`, {
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+  const response = await apiFetch(`/api/v1/topics?${searchParams.toString()}`);
 
   if (!response.ok) {
     throw new Error(`Не удалось получить темы: ${response.status}`);

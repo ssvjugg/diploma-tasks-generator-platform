@@ -39,7 +39,6 @@ export type TaskCreateRequest = {
   inputFormat?: string;
   outputFormat?: string;
   difficulty: TaskDifficulty;
-  authorId: string;
   topicIds: string[];
   languageIds: number[];
 };
