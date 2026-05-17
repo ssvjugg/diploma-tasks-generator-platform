@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
-import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
 import { getTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
@@ -974,6 +974,7 @@ function TaskDetailView() {
 
 function App() {
   const auth = useAuth();
+  const location = useLocation();
   const [tasksPage, setTasksPage] = useState<PageResponse<TaskSummary> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1009,10 +1010,10 @@ function App() {
   }, [auth.isAuthenticated]);
 
   useEffect(() => {
-    if (auth.isAuthenticated) {
+    if (auth.isAuthenticated && location.pathname === '/tasks') {
       void loadTasks(currentPage);
     }
-  }, [auth.isAuthenticated, currentPage, loadTasks]);
+  }, [auth.isAuthenticated, currentPage, loadTasks, location.pathname]);
 
   const { authError, isAuthenticated, isInitializing, login } = auth;
 
