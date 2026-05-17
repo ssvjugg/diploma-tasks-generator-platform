@@ -1,5 +1,5 @@
 import type { PageResponse } from '../types/page';
-import type { TaskCreateRequest, TaskResponse, TaskSummary } from '../types/task';
+import type { TaskCreateRequest, TaskResponse, TaskSummary, TaskUpdateRequest } from '../types/task';
 import { apiFetch } from './client';
 
 type GetTasksParams = {
@@ -52,4 +52,30 @@ export async function createTask(payload: TaskCreateRequest): Promise<unknown> {
   }
 
   return response.json();
+}
+
+export async function updateTask(id: string, payload: TaskUpdateRequest): Promise<TaskResponse> {
+  const response = await apiFetch(`/api/v1/tasks/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не удалось обновить задачу: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const response = await apiFetch(`/api/v1/tasks/${id}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не удалось удалить задачу: ${response.status}`);
+  }
 }
