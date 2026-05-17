@@ -1,4 +1,4 @@
-import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BotMessageSquare,
@@ -9,6 +9,8 @@ import {
   LogOut,
   LoaderCircle,
   MessageSquarePlus,
+  MoreVertical,
+  Pencil,
   Plus,
   Play,
   Search,
@@ -16,17 +18,18 @@ import {
   Sparkles,
   Tags,
   Terminal,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react';
 import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { createTask, getTask, getTasks } from './api/tasks';
+import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
 import { getTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
 import type { PageResponse } from './types/page';
-import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary } from './types/task';
+import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
 import type { Topic } from './types/topic';
 
 const TASKS_PAGE_SIZE = 20;
@@ -79,6 +82,50 @@ const emptyTaskForm: TaskFormState = {
   topicIds: '',
   languageIds: '',
 };
+
+const parseUuidList = (value: string) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const parseLanguageIds = (value: string) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map(Number)
+    .filter(Number.isFinite);
+
+const taskToFormState = (task: TaskResponse): TaskFormState => ({
+  title: task.title,
+  statement: task.statement,
+  inputFormat: task.inputFormat ?? '',
+  outputFormat: task.outputFormat ?? '',
+  difficulty: task.difficulty,
+  topicIds: task.topics.map((topic) => topic.id).join(', '),
+  languageIds: task.supportedLanguages.map((language) => language.id).join(', '),
+});
+
+const buildCreateTaskPayload = (form: TaskFormState): TaskCreateRequest => ({
+  title: form.title.trim(),
+  statement: form.statement.trim(),
+  inputFormat: form.inputFormat.trim() || undefined,
+  outputFormat: form.outputFormat.trim() || undefined,
+  difficulty: form.difficulty,
+  topicIds: parseUuidList(form.topicIds),
+  languageIds: parseLanguageIds(form.languageIds),
+});
+
+const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
+  title: form.title.trim(),
+  statement: form.statement.trim(),
+  inputFormat: form.inputFormat.trim() || undefined,
+  outputFormat: form.outputFormat.trim() || undefined,
+  difficulty: form.difficulty,
+  topicIds: parseUuidList(form.topicIds),
+  languageIds: parseLanguageIds(form.languageIds),
+});
 
 const difficultyLabels: Record<TaskDifficulty, string> = {
   EASY: 'Легкая',
@@ -134,6 +181,182 @@ function MarkdownBlock({ source }: MarkdownBlockProps) {
       <Suspense fallback={<div className="problem-markdown__fallback">Загрузка текста</div>}>
         <MarkdownPreview source={source} />
       </Suspense>
+    </div>
+  );
+}
+
+type TaskFormMode = 'create' | 'edit';
+
+type TaskFormModalProps = {
+  mode: TaskFormMode;
+  initialValue: TaskFormState;
+  isSubmitting: boolean;
+  error: string | null;
+  note: string | null;
+  onClose: () => void;
+  onNoteChange: (note: string | null) => void;
+  onSubmit: (form: TaskFormState) => Promise<void>;
+};
+
+function TaskFormModal({
+  mode,
+  initialValue,
+  isSubmitting,
+  error,
+  note,
+  onClose,
+  onNoteChange,
+  onSubmit,
+}: TaskFormModalProps) {
+  const [form, setForm] = useState<TaskFormState>(initialValue);
+  const isCreateMode = mode === 'create';
+  const title = isCreateMode ? 'Новая задача' : 'Редактирование задачи';
+  const description = isCreateMode ? 'Заполните поля задачи для банка.' : 'Обновите поля задачи и сохраните изменения.';
+  const submitLabel = isCreateMode ? 'Создать' : 'Сохранить';
+  const pendingLabel = isCreateMode ? 'Создание' : 'Сохранение';
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
+
+  const updateForm = (field: keyof TaskFormState, value: string) => {
+    setForm((currentForm) => ({ ...currentForm, [field]: value }));
+  };
+
+  const handleGenerateDraftClick = () => {
+    onNoteChange('AI-предложение позже заполнит эти поля, а преподаватель сможет принять или поправить значения.');
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await onSubmit(form);
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        onClose();
+      }
+    }}>
+      <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-form-title">
+        <header className="task-modal__header">
+          <div>
+            <h2 id="task-form-title">{title}</h2>
+            <p>{description}</p>
+          </div>
+
+          <div className="task-modal__actions">
+            <button
+              className="ai-action"
+              type="button"
+              onClick={handleGenerateDraftClick}
+              aria-label="Предложить заполнение через AI"
+              title="Предложить заполнение через AI"
+            >
+              <Sparkles size={16} aria-hidden="true" />
+              <span>AI</span>
+            </button>
+            <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть форму">
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+
+        <form className="task-form" onSubmit={handleSubmit}>
+          <label className="form-field">
+            <span>Название</span>
+            <input
+              value={form.title}
+              onChange={(event) => updateForm('title', event.target.value)}
+              maxLength={255}
+              required
+            />
+          </label>
+
+          <MarkdownField
+            label="Условие"
+            value={form.statement}
+            rows={5}
+            required
+            onChange={(value) => updateForm('statement', value)}
+          />
+
+          <div className="form-grid">
+            <MarkdownField
+              label="Формат входных данных"
+              value={form.inputFormat}
+              rows={3}
+              onChange={(value) => updateForm('inputFormat', value)}
+            />
+
+            <MarkdownField
+              label="Формат выходных данных"
+              value={form.outputFormat}
+              rows={3}
+              onChange={(value) => updateForm('outputFormat', value)}
+            />
+          </div>
+
+          <div className="form-grid form-grid--compact">
+            <label className="form-field">
+              <span>Сложность</span>
+              <select
+                value={form.difficulty}
+                onChange={(event) => updateForm('difficulty', event.target.value as TaskDifficulty)}
+              >
+                <option value="EASY">Легкая</option>
+                <option value="MEDIUM">Средняя</option>
+                <option value="HARD">Сложная</option>
+              </select>
+            </label>
+
+            <label className="form-field">
+              <span>Темы UUID</span>
+              <input
+                value={form.topicIds}
+                onChange={(event) => updateForm('topicIds', event.target.value)}
+                placeholder="через запятую"
+              />
+            </label>
+
+            <label className="form-field">
+              <span>Языки ID</span>
+              <input
+                value={form.languageIds}
+                onChange={(event) => updateForm('languageIds', event.target.value)}
+                placeholder="1, 2, 3"
+                inputMode="numeric"
+              />
+            </label>
+          </div>
+
+          {note && <p className="form-note">{note}</p>}
+          {error && <p className="form-error">{error}</p>}
+
+          <footer className="task-form__footer">
+            <button className="secondary-button" type="button" onClick={onClose}>
+              Отмена
+            </button>
+            <button className="text-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? pendingLabel : submitLabel}
+            </button>
+          </footer>
+        </form>
+      </section>
     </div>
   );
 }
@@ -426,12 +649,20 @@ function TasksListView({
 }
 
 function TaskDetailView() {
+  const auth = useAuth();
   const navigate = useNavigate();
   const { taskId } = useParams<{ taskId: string }>();
   const [task, setTask] = useState<TaskResponse | null>(null);
   const [isTaskLoading, setIsTaskLoading] = useState(true);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [solutionCode, setSolutionCode] = useState('');
+  const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editNote, setEditNote] = useState<string | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const taskMenuRef = useRef<HTMLDivElement | null>(null);
 
   const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
     if (!taskId) {
@@ -477,6 +708,87 @@ function TaskDetailView() {
     };
   }, [loadTask]);
 
+  useEffect(() => {
+    if (!isTaskMenuOpen) {
+      return undefined;
+    }
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+
+      if (target instanceof Node && !taskMenuRef.current?.contains(target)) {
+        setIsTaskMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+    };
+  }, [isTaskMenuOpen]);
+
+  const canManageTask = auth.hasRole('TEACHER') || auth.hasRole('ADMIN');
+
+  const openEditForm = () => {
+    setIsTaskMenuOpen(false);
+    setEditError(null);
+    setEditNote(null);
+    setIsEditFormOpen(true);
+  };
+
+  const closeEditForm = useCallback(() => {
+    setIsEditFormOpen(false);
+    setEditError(null);
+    setEditNote(null);
+  }, []);
+
+  const handleUpdateTask = async (form: TaskFormState) => {
+    if (!task) {
+      return;
+    }
+
+    setIsUpdatingTask(true);
+    setEditError(null);
+    setEditNote(null);
+
+    try {
+      const updatedTask = await updateTask(task.id, buildUpdateTaskPayload(form));
+      setTask(updatedTask);
+      closeEditForm();
+    } catch (requestError) {
+      setEditError(requestError instanceof Error ? requestError.message : 'Не удалось обновить задачу');
+    } finally {
+      setIsUpdatingTask(false);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!task || isDeletingTask) {
+      return;
+    }
+
+    const shouldDelete = window.confirm(`Удалить задачу "${task.title}"? Это действие нельзя отменить.`);
+
+    if (!shouldDelete) {
+      setIsTaskMenuOpen(false);
+      return;
+    }
+
+    setIsDeletingTask(true);
+    setTaskError(null);
+
+    try {
+      await deleteTask(task.id);
+      navigate('/tasks');
+    } catch (requestError) {
+      setTaskError(requestError instanceof Error ? requestError.message : 'Не удалось удалить задачу');
+      setIsTaskMenuOpen(false);
+    } finally {
+      setIsDeletingTask(false);
+    }
+  };
+
   if (isTaskLoading) {
     return (
       <div className="state-view task-detail-state">
@@ -508,6 +820,40 @@ function TaskDetailView() {
         </button>
 
         <div className="task-detail__actions" aria-label="Действия с задачей">
+          {canManageTask && (
+            <div className="task-detail__menu" ref={taskMenuRef}>
+              <button
+                className="secondary-button secondary-button--icon secondary-button--square"
+                type="button"
+                onClick={() => setIsTaskMenuOpen((isOpen) => !isOpen)}
+                aria-expanded={isTaskMenuOpen}
+                aria-haspopup="menu"
+                aria-label="Управление задачей"
+                title="Управление задачей"
+              >
+                <MoreVertical size={21} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+
+              {isTaskMenuOpen && (
+                <div className="action-menu" role="menu" aria-label="Управление задачей">
+                  <button className="action-menu__item" type="button" onClick={openEditForm} role="menuitem">
+                    <Pencil size={16} aria-hidden="true" />
+                    <span>Изменить</span>
+                  </button>
+                  <button
+                    className="action-menu__item action-menu__item--danger"
+                    type="button"
+                    onClick={handleDeleteTask}
+                    disabled={isDeletingTask}
+                    role="menuitem"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    <span>{isDeletingTask ? 'Удаление' : 'Удалить'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <button className="secondary-button secondary-button--icon" type="button" disabled>
             <MessageSquarePlus size={17} aria-hidden="true" />
             <span>AI</span>
@@ -609,6 +955,19 @@ function TaskDetailView() {
           </footer>
         </section>
       </div>
+
+      {isEditFormOpen && (
+        <TaskFormModal
+          mode="edit"
+          initialValue={taskToFormState(task)}
+          isSubmitting={isUpdatingTask}
+          error={editError}
+          note={editNote}
+          onClose={closeEditForm}
+          onNoteChange={setEditNote}
+          onSubmit={handleUpdateTask}
+        />
+      )}
     </section>
   );
 }
@@ -621,14 +980,12 @@ function App() {
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
-  const [taskForm, setTaskForm] = useState<TaskFormState>(emptyTaskForm);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formNote, setFormNote] = useState<string | null>(null);
 
   const closeCreateForm = useCallback(() => {
     setIsCreateFormOpen(false);
-    setTaskForm(emptyTaskForm);
     setFormError(null);
     setFormNote(null);
   }, []);
@@ -665,28 +1022,6 @@ function App() {
     }
   }, [authError, isAuthenticated, isInitializing, login]);
 
-  useEffect(() => {
-    if (!isCreateFormOpen) {
-      return undefined;
-    }
-
-    const previousBodyOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeCreateForm();
-      }
-    };
-
-    window.addEventListener('keydown', handleEscape);
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [closeCreateForm, isCreateFormOpen]);
-
   const tasks = useMemo(() => {
     const source = tasksPage?.content ?? [];
     const normalizedQuery = query.trim().toLowerCase();
@@ -720,48 +1055,13 @@ function App() {
     setFormNote(null);
   };
 
-  const updateTaskForm = (field: keyof TaskFormState, value: string) => {
-    setTaskForm((form) => ({ ...form, [field]: value }));
-  };
-
-  const parseUuidList = (value: string) =>
-    value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const parseLanguageIds = (value: string) =>
-    value
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map(Number)
-      .filter(Number.isFinite);
-
-  const buildCreateTaskPayload = (): TaskCreateRequest => {
-    return {
-      title: taskForm.title.trim(),
-      statement: taskForm.statement.trim(),
-      inputFormat: taskForm.inputFormat.trim() || undefined,
-      outputFormat: taskForm.outputFormat.trim() || undefined,
-      difficulty: taskForm.difficulty,
-      topicIds: parseUuidList(taskForm.topicIds),
-      languageIds: parseLanguageIds(taskForm.languageIds),
-    };
-  };
-
-  const handleGenerateDraftClick = () => {
-    setFormNote('AI-предложение позже заполнит эти поля, а преподаватель сможет принять или поправить значения.');
-  };
-
-  const handleCreateTask = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleCreateTask = async (form: TaskFormState) => {
     setIsCreatingTask(true);
     setFormError(null);
     setFormNote(null);
 
     try {
-      await createTask(buildCreateTaskPayload());
+      await createTask(buildCreateTaskPayload(form));
       closeCreateForm();
 
       if (currentPage === 0) {
@@ -882,117 +1182,16 @@ function App() {
       </aside>
 
       {isCreateFormOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) {
-            closeCreateForm();
-          }
-        }}>
-          <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="create-task-title">
-            <header className="task-modal__header">
-              <div>
-                <h2 id="create-task-title">Новая задача</h2>
-                <p>Заполните поля задачи для банка.</p>
-              </div>
-
-              <div className="task-modal__actions">
-                <button
-                  className="ai-action"
-                  type="button"
-                  onClick={handleGenerateDraftClick}
-                  aria-label="Предложить заполнение через AI"
-                  title="Предложить заполнение через AI"
-                >
-                  <Sparkles size={16} aria-hidden="true" />
-                  <span>AI</span>
-                </button>
-                <button className="modal-close" type="button" onClick={closeCreateForm} aria-label="Закрыть форму">
-                  <X size={18} aria-hidden="true" />
-                </button>
-              </div>
-            </header>
-
-            <form className="task-form" onSubmit={handleCreateTask}>
-              <label className="form-field">
-                <span>Название</span>
-                <input
-                  value={taskForm.title}
-                  onChange={(event) => updateTaskForm('title', event.target.value)}
-                  maxLength={255}
-                  required
-                />
-              </label>
-
-              <MarkdownField
-                label="Условие"
-                value={taskForm.statement}
-                rows={5}
-                required
-                onChange={(value) => updateTaskForm('statement', value)}
-              />
-
-              <div className="form-grid">
-                <MarkdownField
-                  label="Формат входных данных"
-                  value={taskForm.inputFormat}
-                  rows={3}
-                  onChange={(value) => updateTaskForm('inputFormat', value)}
-                />
-
-                <MarkdownField
-                  label="Формат выходных данных"
-                  value={taskForm.outputFormat}
-                  rows={3}
-                  onChange={(value) => updateTaskForm('outputFormat', value)}
-                />
-              </div>
-
-              <div className="form-grid form-grid--compact">
-                <label className="form-field">
-                  <span>Сложность</span>
-                  <select
-                    value={taskForm.difficulty}
-                    onChange={(event) => updateTaskForm('difficulty', event.target.value as TaskDifficulty)}
-                  >
-                    <option value="EASY">Легкая</option>
-                    <option value="MEDIUM">Средняя</option>
-                    <option value="HARD">Сложная</option>
-                  </select>
-                </label>
-
-                <label className="form-field">
-                  <span>Темы UUID</span>
-                  <input
-                    value={taskForm.topicIds}
-                    onChange={(event) => updateTaskForm('topicIds', event.target.value)}
-                    placeholder="через запятую"
-                  />
-                </label>
-
-                <label className="form-field">
-                  <span>Языки ID</span>
-                  <input
-                    value={taskForm.languageIds}
-                    onChange={(event) => updateTaskForm('languageIds', event.target.value)}
-                    placeholder="1, 2, 3"
-                    inputMode="numeric"
-                  />
-                </label>
-              </div>
-
-              {formNote && <p className="form-note">{formNote}</p>}
-              {formError && <p className="form-error">{formError}</p>}
-
-              <footer className="task-form__footer">
-                <button className="secondary-button" type="button" onClick={closeCreateForm}>
-                  Отмена
-                </button>
-                <button className="text-button" type="submit" disabled={isCreatingTask}>
-                  {isCreatingTask ? 'Создание' : 'Создать'}
-                </button>
-              </footer>
-            </form>
-          </section>
-        </div>
+        <TaskFormModal
+          mode="create"
+          initialValue={emptyTaskForm}
+          isSubmitting={isCreatingTask}
+          error={formError}
+          note={formNote}
+          onClose={closeCreateForm}
+          onNoteChange={setFormNote}
+          onSubmit={handleCreateTask}
+        />
       )}
     </main>
   );

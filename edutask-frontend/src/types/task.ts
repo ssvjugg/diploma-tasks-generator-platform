@@ -42,3 +42,5 @@ export type TaskCreateRequest = {
   topicIds: string[];
   languageIds: number[];
 };
+
+export type TaskUpdateRequest = Partial<TaskCreateRequest>;
