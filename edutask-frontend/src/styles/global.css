@@ -1023,6 +1023,10 @@ h1 {
   grid-template-columns: 160px repeat(2, minmax(0, 1fr));
 }
 
+.form-grid--task-meta {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
 .form-field {
   display: grid;
   gap: 7px;
@@ -1415,7 +1419,8 @@ h1 {
   }
 
   .form-grid,
-  .form-grid--compact {
+  .form-grid--compact,
+  .form-grid--task-meta {
     grid-template-columns: 1fr;
   }
 

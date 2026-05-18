@@ -473,7 +473,7 @@ function TaskFormModal({
             />
           </div>
 
-          <div className="form-grid form-grid--compact">
+          <div className="form-grid form-grid--task-meta">
             <label className="form-field">
               <span>Сложность</span>
               <select
