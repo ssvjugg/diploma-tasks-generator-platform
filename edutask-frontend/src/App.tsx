@@ -185,6 +185,16 @@ function TopicMultiSelect({ selectedTopics, onChange }: TopicMultiSelectProps) {
   const debounceRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const cancelPendingTopicSearch = useCallback(() => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
   const selectedTopicIds = useMemo(
     () => new Set(selectedTopics.map((topic) => topic.id)),
     [selectedTopics],
@@ -196,21 +206,17 @@ function TopicMultiSelect({ selectedTopics, onChange }: TopicMultiSelectProps) {
   );
 
   useEffect(() => () => {
-    if (debounceRef.current !== null) {
-      window.clearTimeout(debounceRef.current);
-    }
-    abortControllerRef.current?.abort();
-  }, []);
+    cancelPendingTopicSearch();
+  }, [cancelPendingTopicSearch]);
 
   useEffect(() => {
     if (!isOpen) {
+      cancelPendingTopicSearch();
+      setIsLoading(false);
       return;
     }
 
-    if (debounceRef.current !== null) {
-      window.clearTimeout(debounceRef.current);
-    }
-    abortControllerRef.current?.abort();
+    cancelPendingTopicSearch();
 
     const normalizedQuery = normalizeTopicQuery(query);
     const cachedTopics = cacheRef.current.get(normalizedQuery);
@@ -248,15 +254,16 @@ function TopicMultiSelect({ selectedTopics, onChange }: TopicMultiSelectProps) {
           if (!controller.signal.aborted) {
             setIsLoading(false);
           }
+          if (abortControllerRef.current === controller) {
+            abortControllerRef.current = null;
+          }
         });
     }, TOPIC_SEARCH_DEBOUNCE_MS);
 
     return () => {
-      if (debounceRef.current !== null) {
-        window.clearTimeout(debounceRef.current);
-      }
+      cancelPendingTopicSearch();
     };
-  }, [isOpen, query]);
+  }, [cancelPendingTopicSearch, isOpen, query]);
 
   const handleFocus = () => {
     setIsOpen(true);
