@@ -30,9 +30,6 @@ public record TaskCreateRequest(
     TaskDifficulty difficulty,
 
     @Schema(description = "Идентификаторы тем")
-    Set<UUID> topicIds,
-
-    @Schema(description = "Идентификаторы поддерживаемых языков программирования")
-    Set<Integer> languageIds
+    Set<UUID> topicIds
 ) {
 }

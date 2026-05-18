@@ -13,24 +13,19 @@ import ru.usernamedrew.edutaskcommon.dto.task.TaskResponse;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskSearchRequest;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskSummary;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskUpdateRequest;
-import ru.usernamedrew.edutaskcore.entity.ProgrammingLanguage;
 import ru.usernamedrew.edutaskcore.entity.Task;
 import ru.usernamedrew.edutaskcore.entity.UserProfile;
 import ru.usernamedrew.edutaskcore.exception.ResourceNotFoundException;
 import ru.usernamedrew.edutaskcore.mapper.TaskMapper;
-import ru.usernamedrew.edutaskcore.repository.ProgrammingLanguageRepository;
 import ru.usernamedrew.edutaskcore.repository.TaskRepository;
 import ru.usernamedrew.edutaskcore.repository.UserProfileRepository;
 import ru.usernamedrew.edutaskcore.repository.projection.TaskSummaryProjection;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.hasAuthor;
 import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.hasDifficulty;
 import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.hasTopic;
-import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.supportsLanguage;
 import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.titleOrStatementContains;
 
 @Service
@@ -38,7 +33,6 @@ import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifica
 public class TaskService {
     private final TaskRepository taskRepository;
     private final UserProfileRepository userProfileRepository;
-    private final ProgrammingLanguageRepository programmingLanguageRepository;
     private final TopicService topicService;
     private final UserProfileService userProfileService;
     private final TaskMapper taskMapper;
@@ -49,8 +43,7 @@ public class TaskService {
             .where(titleOrStatementContains(request.query()))
             .and(hasDifficulty(request.difficulty()))
             .and(hasAuthor(request.authorId()))
-            .and(hasTopic(request.topicId()))
-            .and(supportsLanguage(request.languageCode()));
+            .and(hasTopic(request.topicId()));
 
         Page<TaskSummaryProjection> taskPage = taskRepository.findBy(
             specification,
@@ -84,7 +77,6 @@ public class TaskService {
         task.setDifficulty(request.difficulty());
         task.setAuthor(author);
         task.setTopics(topicService.resolveTopics(request.topicIds()));
-        task.setSupportedLanguages(resolveLanguages(request.languageIds()));
 
         Task savedTask = taskRepository.saveAndFlush(task);
         return taskMapper.toResponse(savedTask);
@@ -119,9 +111,6 @@ public class TaskService {
         if (request.topicIds() != null) {
             task.setTopics(topicService.resolveTopics(request.topicIds()));
         }
-        if (request.languageIds() != null) {
-            task.setSupportedLanguages(resolveLanguages(request.languageIds()));
-        }
 
         taskRepository.flush();
         return taskMapper.toResponse(task);
@@ -137,16 +126,5 @@ public class TaskService {
     private Task findDetailedTask(UUID id) {
         return taskRepository.findDetailedById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
-    }
-
-    private Set<ProgrammingLanguage> resolveLanguages(Set<Integer> languageIds) {
-        if (languageIds == null || languageIds.isEmpty()) {
-            return new HashSet<>();
-        }
-        Set<ProgrammingLanguage> languages = new HashSet<>(programmingLanguageRepository.findAllById(languageIds));
-        if (languages.size() != languageIds.size()) {
-            throw new ResourceNotFoundException("One or more programming languages were not found");
-        }
-        return languages;
     }
 }

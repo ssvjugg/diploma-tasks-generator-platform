@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TaskRepository extends JpaRepository<Task, UUID>, JpaSpecificationExecutor<Task> {
-    @EntityGraph(attributePaths = {"author", "topics", "topics.parent", "supportedLanguages"})
+    @EntityGraph(attributePaths = {"author", "topics"})
     @Query("select t from Task t where t.id = :id")
     Optional<Task> findDetailedById(@Param("id") UUID id);
 }

@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.usernamedrew.edutaskcommon.dto.topic.TopicCreateRequest;
@@ -39,15 +38,13 @@ public class TopicService {
 
     @Transactional(readOnly = true)
     public List<TopicSummary> searchTopics(String query, int limit) {
-        Pageable pageable = PageRequest.of(
-            0,
-            Math.min(limit, MAX_SEARCH_LIMIT),
-            Sort.by(Sort.Direction.ASC, "name")
-        );
+        String normalizedQuery = normalizeQuery(query);
+        Pageable pageable = PageRequest.of(0, Math.min(limit, MAX_SEARCH_LIMIT));
 
-        return findTopics(normalizeQuery(query), null, pageable)
-            .map(topicMapper::toSummary)
-            .getContent();
+        if (normalizedQuery == null) {
+            return topicRepository.findSummaries(pageable);
+        }
+        return topicRepository.findSummariesByNameLike("%" + normalizedQuery + "%", pageable);
     }
 
     @Transactional(readOnly = true)

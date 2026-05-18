@@ -1,4 +1,4 @@
-import { type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type FocusEvent, type FormEvent, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BotMessageSquare,
@@ -26,14 +26,16 @@ import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
-import { getTopics } from './api/topics';
+import { getTopics, searchTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
 import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
-import type { Topic } from './types/topic';
+import type { Topic, TopicSummary } from './types/topic';
 
 const TASKS_PAGE_SIZE = 20;
 const TOPICS_PAGE_SIZE = 12;
+const TOPIC_SEARCH_LIMIT = 12;
+const TOPIC_SEARCH_DEBOUNCE_MS = 250;
 const MarkdownEditor = lazy(() => import('@uiw/react-md-editor'));
 const MarkdownPreview = lazy(async () => {
   const module = await import('@uiw/react-md-editor');
@@ -69,8 +71,7 @@ type TaskFormState = {
   inputFormat: string;
   outputFormat: string;
   difficulty: TaskDifficulty;
-  topicIds: string;
-  languageIds: string;
+  topics: TopicSummary[];
 };
 
 const emptyTaskForm: TaskFormState = {
@@ -79,23 +80,8 @@ const emptyTaskForm: TaskFormState = {
   inputFormat: '',
   outputFormat: '',
   difficulty: 'EASY',
-  topicIds: '',
-  languageIds: '',
+  topics: [],
 };
-
-const parseUuidList = (value: string) =>
-  value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const parseLanguageIds = (value: string) =>
-  value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map(Number)
-    .filter(Number.isFinite);
 
 const taskToFormState = (task: TaskResponse): TaskFormState => ({
   title: task.title,
@@ -103,8 +89,7 @@ const taskToFormState = (task: TaskResponse): TaskFormState => ({
   inputFormat: task.inputFormat ?? '',
   outputFormat: task.outputFormat ?? '',
   difficulty: task.difficulty,
-  topicIds: task.topics.map((topic) => topic.id).join(', '),
-  languageIds: task.supportedLanguages.map((language) => language.id).join(', '),
+  topics: task.topics,
 });
 
 const buildCreateTaskPayload = (form: TaskFormState): TaskCreateRequest => ({
@@ -113,8 +98,7 @@ const buildCreateTaskPayload = (form: TaskFormState): TaskCreateRequest => ({
   inputFormat: form.inputFormat.trim() || undefined,
   outputFormat: form.outputFormat.trim() || undefined,
   difficulty: form.difficulty,
-  topicIds: parseUuidList(form.topicIds),
-  languageIds: parseLanguageIds(form.languageIds),
+  topicIds: form.topics.map((topic) => topic.id),
 });
 
 const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
@@ -123,8 +107,7 @@ const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
   inputFormat: form.inputFormat.trim() || undefined,
   outputFormat: form.outputFormat.trim() || undefined,
   difficulty: form.difficulty,
-  topicIds: parseUuidList(form.topicIds),
-  languageIds: parseLanguageIds(form.languageIds),
+  topicIds: form.topics.map((topic) => topic.id),
 });
 
 const difficultyLabels: Record<TaskDifficulty, string> = {
@@ -185,6 +168,181 @@ function MarkdownBlock({ source }: MarkdownBlockProps) {
   );
 }
 
+type TopicMultiSelectProps = {
+  selectedTopics: TopicSummary[];
+  onChange: (topics: TopicSummary[]) => void;
+};
+
+const normalizeTopicQuery = (query: string) => query.trim().toLowerCase();
+
+function TopicMultiSelect({ selectedTopics, onChange }: TopicMultiSelectProps) {
+  const [query, setQuery] = useState('');
+  const [options, setOptions] = useState<TopicSummary[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cacheRef = useRef(new Map<string, TopicSummary[]>());
+  const debounceRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelPendingTopicSearch = useCallback(() => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
+  const selectedTopicIds = useMemo(
+    () => new Set(selectedTopics.map((topic) => topic.id)),
+    [selectedTopics],
+  );
+
+  const visibleOptions = useMemo(
+    () => options.filter((topic) => !selectedTopicIds.has(topic.id)),
+    [options, selectedTopicIds],
+  );
+
+  useEffect(() => () => {
+    cancelPendingTopicSearch();
+  }, [cancelPendingTopicSearch]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      cancelPendingTopicSearch();
+      setIsLoading(false);
+      return;
+    }
+
+    cancelPendingTopicSearch();
+
+    const normalizedQuery = normalizeTopicQuery(query);
+    const cachedTopics = cacheRef.current.get(normalizedQuery);
+
+    if (cachedTopics) {
+      setOptions(cachedTopics);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    debounceRef.current = window.setTimeout(() => {
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      searchTopics({
+        query: normalizedQuery,
+        limit: TOPIC_SEARCH_LIMIT,
+        signal: controller.signal,
+      })
+        .then((topics) => {
+          cacheRef.current.set(normalizedQuery, topics);
+          setOptions(topics);
+        })
+        .catch((requestError) => {
+          if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+            return;
+          }
+          setError(requestError instanceof Error ? requestError.message : 'Не удалось найти темы');
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsLoading(false);
+          }
+          if (abortControllerRef.current === controller) {
+            abortControllerRef.current = null;
+          }
+        });
+    }, TOPIC_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      cancelPendingTopicSearch();
+    };
+  }, [cancelPendingTopicSearch, isOpen, query]);
+
+  const handleFocus = () => {
+    setIsOpen(true);
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget as HTMLElement | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+    setIsOpen(false);
+  };
+
+  const selectTopic = (topic: TopicSummary) => {
+    if (!selectedTopicIds.has(topic.id)) {
+      onChange([...selectedTopics, topic]);
+    }
+    setQuery('');
+    setIsOpen(true);
+  };
+
+  const removeTopic = (topicId: string) => {
+    onChange(selectedTopics.filter((topic) => topic.id !== topicId));
+  };
+
+  return (
+    <div className="topic-select form-field" onBlur={handleBlur}>
+      <span>Темы</span>
+      <div className="topic-select__control">
+        {selectedTopics.map((topic) => (
+          <button className="topic-select__chip" type="button" key={topic.id} onClick={() => removeTopic(topic.id)}>
+            <span>{topic.name}</span>
+            <X size={14} aria-hidden="true" />
+          </button>
+        ))}
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={handleFocus}
+          placeholder={selectedTopics.length === 0 ? 'Найти тему' : 'Добавить тему'}
+          aria-label="Поиск темы"
+        />
+      </div>
+
+      {isOpen && (
+        <div className="topic-select__popover" role="listbox" aria-label="Найденные темы">
+          {isLoading && (
+            <div className="topic-select__state">
+              <LoaderCircle className="state-view__loader" size={16} aria-hidden="true" />
+              <span>Поиск</span>
+            </div>
+          )}
+
+          {!isLoading && error && <div className="topic-select__state topic-select__state--error">{error}</div>}
+
+          {!isLoading && !error && visibleOptions.length === 0 && (
+            <div className="topic-select__state">Темы не найдены</div>
+          )}
+
+          {!isLoading && !error && visibleOptions.map((topic) => (
+            <button
+              className="topic-select__option"
+              type="button"
+              key={topic.id}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectTopic(topic)}
+              role="option"
+              aria-selected="false"
+            >
+              <span>{topic.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type TaskFormMode = 'create' | 'edit';
 
 type TaskFormModalProps = {
@@ -233,8 +391,12 @@ function TaskFormModal({
     };
   }, [onClose]);
 
-  const updateForm = (field: keyof TaskFormState, value: string) => {
+  const updateForm = (field: Exclude<keyof TaskFormState, 'topics'>, value: string) => {
     setForm((currentForm) => ({ ...currentForm, [field]: value }));
+  };
+
+  const updateTopics = (topics: TopicSummary[]) => {
+    setForm((currentForm) => ({ ...currentForm, topics }));
   };
 
   const handleGenerateDraftClick = () => {
@@ -311,7 +473,7 @@ function TaskFormModal({
             />
           </div>
 
-          <div className="form-grid form-grid--compact">
+          <div className="form-grid form-grid--task-meta">
             <label className="form-field">
               <span>Сложность</span>
               <select
@@ -324,24 +486,7 @@ function TaskFormModal({
               </select>
             </label>
 
-            <label className="form-field">
-              <span>Темы UUID</span>
-              <input
-                value={form.topicIds}
-                onChange={(event) => updateForm('topicIds', event.target.value)}
-                placeholder="через запятую"
-              />
-            </label>
-
-            <label className="form-field">
-              <span>Языки ID</span>
-              <input
-                value={form.languageIds}
-                onChange={(event) => updateForm('languageIds', event.target.value)}
-                placeholder="1, 2, 3"
-                inputMode="numeric"
-              />
-            </label>
+            <TopicMultiSelect selectedTopics={form.topics} onChange={updateTopics} />
           </div>
 
           {note && <p className="form-note">{note}</p>}
@@ -809,8 +954,6 @@ function TaskDetailView() {
     );
   }
 
-  const primaryLanguage = task.supportedLanguages[0];
-
   return (
     <section className="task-detail" aria-labelledby="page-title">
       <header className="task-detail__topbar">
@@ -921,13 +1064,8 @@ function TaskDetailView() {
               <Code2 size={19} aria-hidden="true" />
               <span>Code</span>
             </div>
-            <select aria-label="Язык решения" defaultValue={primaryLanguage?.id ?? ''}>
-              {task.supportedLanguages.length === 0 && <option value="">Language</option>}
-              {task.supportedLanguages.map((language) => (
-                <option value={language.id} key={language.id}>
-                  {language.name}
-                </option>
-              ))}
+            <select aria-label="Язык решения" defaultValue="" disabled>
+              <option value="">Language</option>
             </select>
           </header>
 

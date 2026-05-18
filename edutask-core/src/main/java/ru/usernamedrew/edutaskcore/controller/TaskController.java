@@ -45,7 +45,7 @@ public class TaskController {
 
     @Operation(
         summary = "Получить список задач",
-        description = "Возвращает постраничный список задач с фильтрами по тексту, сложности, автору, теме и языку."
+        description = "Возвращает постраничный список задач с фильтрами по тексту, сложности, автору и теме."
     )
     @ApiResponse(responseCode = "200", description = "Список задач получен")
     @GetMapping
@@ -71,7 +71,7 @@ public class TaskController {
         return taskService.findTasks(request, pageable);
     }
 
-    @Operation(summary = "Получить задачу", description = "Возвращает задачу со связанными темами и языками.")
+    @Operation(summary = "Получить задачу", description = "Возвращает задачу со связанными темами.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Задача найдена"),
         @ApiResponse(responseCode = "404", description = "Задача не найдена", content = @Content(schema = @Schema(hidden = true)))
@@ -82,11 +82,11 @@ public class TaskController {
         return taskService.getTask(id);
     }
 
-    @Operation(summary = "Создать задачу", description = "Создает задачу и связывает ее с автором, темами и поддерживаемыми языками.")
+    @Operation(summary = "Создать задачу", description = "Создает задачу и связывает ее с автором и темами.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Задача создана"),
         @ApiResponse(responseCode = "400", description = "Ошибка валидации", content = @Content(schema = @Schema(hidden = true))),
-        @ApiResponse(responseCode = "404", description = "Автор, тема или язык не найдены", content = @Content(schema = @Schema(hidden = true)))
+        @ApiResponse(responseCode = "404", description = "Автор или тема не найдены", content = @Content(schema = @Schema(hidden = true)))
     })
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -97,12 +97,12 @@ public class TaskController {
 
     @Operation(
         summary = "Частично обновить задачу",
-        description = "Обновляет только переданные поля. Чтобы очистить темы или языки, передайте пустой массив."
+        description = "Обновляет только переданные поля. Чтобы очистить темы, передайте пустой массив."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Задача обновлена"),
         @ApiResponse(responseCode = "400", description = "Ошибка валидации", content = @Content(schema = @Schema(hidden = true))),
-        @ApiResponse(responseCode = "404", description = "Задача, автор, тема или язык не найдены", content = @Content(schema = @Schema(hidden = true)))
+        @ApiResponse(responseCode = "404", description = "Задача, автор или тема не найдены", content = @Content(schema = @Schema(hidden = true)))
     })
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER', 'ADMIN')")

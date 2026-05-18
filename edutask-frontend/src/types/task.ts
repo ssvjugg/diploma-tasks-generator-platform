@@ -9,14 +9,6 @@ export type TaskSummary = {
 export type TaskTopicSummary = {
   id: string;
   name: string;
-  parentId: string | null;
-};
-
-export type ProgrammingLanguageSummary = {
-  id: number;
-  name: string;
-  code: string;
-  judge0LanguageId: number;
 };
 
 export type TaskResponse = {
@@ -28,7 +20,6 @@ export type TaskResponse = {
   difficulty: TaskDifficulty;
   authorId: string;
   topics: TaskTopicSummary[];
-  supportedLanguages: ProgrammingLanguageSummary[];
   createdAt: string;
   updatedAt: string;
 };
@@ -40,7 +31,6 @@ export type TaskCreateRequest = {
   outputFormat?: string;
   difficulty: TaskDifficulty;
   topicIds: string[];
-  languageIds: number[];
 };
 
 export type TaskUpdateRequest = Partial<TaskCreateRequest>;
