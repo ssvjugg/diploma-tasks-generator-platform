@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationResponseEvent;
+import ru.usernamedrew.edutaskcommon.kafka.InvalidKafkaPayloadException;
 import ru.usernamedrew.edutaskcore.service.TaskGenerationResponseHandler;
 
 @Component
@@ -16,8 +17,8 @@ public class TaskGenerationResponseConsumer {
         containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(TaskGenerationResponseEvent event) {
-        if (event.requestId() == null) {
-            throw new IllegalArgumentException("Task generation response requestId must not be null");
+        if (event == null || event.requestId() == null) {
+            throw new InvalidKafkaPayloadException("Task generation response event must not be null");
         }
         responseHandler.handle(event);
     }

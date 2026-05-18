@@ -83,6 +83,14 @@ edutask:
       task-generation-requests-dlt: ${TASK_GENERATION_REQUESTS_DLT_TOPIC:task-generation-requests.dlt}
       task-generation-responses-dlt: ${TASK_GENERATION_RESPONSES_DLT_TOPIC:task-generation-responses.dlt}
 
+  generation:
+    default-provider: ${EDUTASK_GENERATION_DEFAULT_PROVIDER:DEFAULT_QWEN}
+    default-model: ${EDUTASK_GENERATION_DEFAULT_MODEL:qwen2.5-coder:7b}
+    default-temperature: ${EDUTASK_GENERATION_DEFAULT_TEMPERATURE:0.3}
+    kafka-send-timeout: ${EDUTASK_GENERATION_KAFKA_SEND_TIMEOUT:10s}
+    sse-timeout: ${EDUTASK_GENERATION_SSE_TIMEOUT:10m}
+    schema-version: ${EDUTASK_GENERATION_SCHEMA_VERSION:1}
+
   security:
     keycloak:
       client-id: ${KEYCLOAK_CLIENT_ID:edutask-frontend}

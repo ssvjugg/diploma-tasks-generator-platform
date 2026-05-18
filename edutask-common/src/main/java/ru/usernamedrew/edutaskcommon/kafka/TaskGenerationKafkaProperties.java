@@ -3,6 +3,7 @@ package ru.usernamedrew.edutaskcommon.kafka;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -38,15 +39,19 @@ public class TaskGenerationKafkaProperties {
     @Setter
     public static class Topics {
         @NotNull
+        @NotBlank
         private String taskGenerationRequests = "task-generation-requests";
 
         @NotNull
+        @NotBlank
         private String taskGenerationResponses = "task-generation-responses";
 
         @NotNull
+        @NotBlank
         private String taskGenerationRequestsDlt = "task-generation-requests.dlt";
 
         @NotNull
+        @NotBlank
         private String taskGenerationResponsesDlt = "task-generation-responses.dlt";
     }
 

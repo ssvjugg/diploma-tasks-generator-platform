@@ -16,6 +16,7 @@ import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.util.backoff.FixedBackOff;
+import ru.usernamedrew.edutaskcommon.kafka.InvalidKafkaPayloadException;
 import ru.usernamedrew.edutaskcommon.kafka.TaskGenerationKafkaProperties;
 import ru.usernamedrew.edutaskcommon.kafka.TaskGenerationKafkaTopics;
 
@@ -23,7 +24,7 @@ import ru.usernamedrew.edutaskcommon.kafka.TaskGenerationKafkaTopics;
 @Slf4j
 @EnableKafka
 @Configuration
-@EnableConfigurationProperties(TaskGenerationKafkaProperties.class)
+@EnableConfigurationProperties({TaskGenerationKafkaProperties.class, TaskGenerationProperties.class})
 public class TaskGenerationKafkaConfig {
     @Bean
     public NewTopic taskGenerationRequestsTopic(TaskGenerationKafkaProperties properties) {
@@ -74,6 +75,7 @@ public class TaskGenerationKafkaConfig {
             Math.max(0, properties.getRetry().getMaxAttempts() - 1L)
         );
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
+        errorHandler.addNotRetryableExceptions(InvalidKafkaPayloadException.class);
         errorHandler.setRetryListeners((record, exception, deliveryAttempt) ->
             log.warn(
                 "Kafka record processing failed, topic={}, partition={}, offset={}, attempt={}",
