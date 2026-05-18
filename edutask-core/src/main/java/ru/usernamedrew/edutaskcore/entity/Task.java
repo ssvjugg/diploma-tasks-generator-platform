@@ -43,11 +43,4 @@ public class Task extends BaseEntity {
     )
     private Set<Topic> topics = new HashSet<>();
 
-    @ManyToMany
-    @JoinTable(
-        name = "task_language",
-        joinColumns = @JoinColumn(name = "task_id"),
-        inverseJoinColumns = @JoinColumn(name = "language_id")
-    )
-    private Set<ProgrammingLanguage> supportedLanguages = new HashSet<>();
 }

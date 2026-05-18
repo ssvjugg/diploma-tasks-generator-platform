@@ -33,9 +33,6 @@ public record TaskUpdateRequest(
     UUID authorId,
 
     @Schema(description = "Идентификаторы тем. Пустой массив очищает список тем.")
-    Set<UUID> topicIds,
-
-    @Schema(description = "Идентификаторы языков. Пустой массив очищает список языков.")
-    Set<Integer> languageIds
+    Set<UUID> topicIds
 ) {
 }

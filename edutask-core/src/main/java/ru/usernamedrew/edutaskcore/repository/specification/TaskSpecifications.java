@@ -55,23 +55,4 @@ public final class TaskSpecifications {
         };
     }
 
-    public static Specification<Task> supportsLanguage(String languageCode) {
-        return (root, criteriaQuery, criteriaBuilder) -> {
-            if (languageCode == null || languageCode.isBlank()) {
-                return criteriaBuilder.conjunction();
-            }
-            Subquery<UUID> subquery = criteriaQuery.subquery(UUID.class);
-            Root<Task> subqueryRoot = subquery.from(Task.class);
-            subquery.select(subqueryRoot.get("id"))
-                .where(
-                    criteriaBuilder.equal(subqueryRoot.get("id"), root.get("id")),
-                    criteriaBuilder.equal(
-                        criteriaBuilder.lower(subqueryRoot.join("supportedLanguages", JoinType.INNER).get("code")),
-                        languageCode.trim().toLowerCase()
-                    )
-                );
-
-            return criteriaBuilder.exists(subquery);
-        };
-    }
 }

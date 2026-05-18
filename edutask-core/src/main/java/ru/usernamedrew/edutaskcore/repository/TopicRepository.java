@@ -6,8 +6,10 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary;
 import ru.usernamedrew.edutaskcore.entity.Topic;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +32,21 @@ public interface TopicRepository extends JpaRepository<Topic, UUID> {
         where lower(t.name) like :queryPattern
         """)
     Page<Topic> findByNameLike(@Param("queryPattern") String queryPattern, Pageable pageable);
+
+    @Query("""
+        select new ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary(t.id, t.name)
+        from Topic t
+        order by lower(t.name), t.id
+        """)
+    List<TopicSummary> findSummaries(Pageable pageable);
+
+    @Query("""
+        select new ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary(t.id, t.name)
+        from Topic t
+        where lower(t.name) like :queryPattern
+        order by lower(t.name), t.id
+        """)
+    List<TopicSummary> findSummariesByNameLike(@Param("queryPattern") String queryPattern, Pageable pageable);
 
     @EntityGraph(attributePaths = "parent")
     @Query("""

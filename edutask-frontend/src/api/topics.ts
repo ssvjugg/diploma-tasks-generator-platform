@@ -1,11 +1,17 @@
 import type { PageResponse } from '../types/page';
-import type { Topic } from '../types/topic';
+import type { Topic, TopicSummary } from '../types/topic';
 import { apiFetch } from './client';
 
 type GetTopicsParams = {
   page?: number;
   size?: number;
   query?: string;
+};
+
+type SearchTopicsParams = {
+  query?: string;
+  limit?: number;
+  signal?: AbortSignal;
 };
 
 export async function getTopics(params: GetTopicsParams = {}): Promise<PageResponse<Topic>> {
@@ -23,6 +29,26 @@ export async function getTopics(params: GetTopicsParams = {}): Promise<PageRespo
 
   if (!response.ok) {
     throw new Error(`Не удалось получить темы: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function searchTopics(params: SearchTopicsParams = {}): Promise<TopicSummary[]> {
+  const searchParams = new URLSearchParams({
+    limit: String(params.limit ?? 12),
+  });
+
+  if (params.query?.trim()) {
+    searchParams.set('query', params.query.trim());
+  }
+
+  const response = await apiFetch(`/api/v1/topics/search?${searchParams.toString()}`, {
+    signal: params.signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не удалось найти темы: ${response.status}`);
   }
 
   return response.json();

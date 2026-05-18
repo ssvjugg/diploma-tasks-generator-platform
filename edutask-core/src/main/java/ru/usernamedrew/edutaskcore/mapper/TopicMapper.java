@@ -12,6 +12,5 @@ public interface TopicMapper {
     @Mapping(target = "parentId", source = "parent.id")
     TopicResponse toResponse(Topic topic);
 
-    @Mapping(target = "parentId", source = "parent.id")
     TopicSummary toSummary(Topic topic);
 }

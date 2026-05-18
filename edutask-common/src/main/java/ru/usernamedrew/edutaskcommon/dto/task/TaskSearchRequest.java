@@ -16,9 +16,6 @@ public record TaskSearchRequest(
     UUID authorId,
 
     @Schema(description = "Идентификатор темы")
-    UUID topicId,
-
-    @Schema(description = "Код языка программирования", example = "java")
-    String languageCode
+    UUID topicId
 ) {
 }

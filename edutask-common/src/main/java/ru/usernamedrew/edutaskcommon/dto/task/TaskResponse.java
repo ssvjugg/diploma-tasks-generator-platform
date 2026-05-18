@@ -33,9 +33,6 @@ public record TaskResponse(
     @Schema(description = "Темы задачи")
     Set<TopicSummary> topics,
 
-    @Schema(description = "Поддерживаемые языки программирования")
-    Set<ProgrammingLanguageSummary> supportedLanguages,
-
     @Schema(description = "Дата создания")
     OffsetDateTime createdAt,
 

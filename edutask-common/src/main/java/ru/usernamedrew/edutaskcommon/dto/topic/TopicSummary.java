@@ -10,9 +10,6 @@ public record TopicSummary(
     UUID id,
 
     @Schema(description = "Название темы", example = "Динамическое программирование")
-    String name,
-
-    @Schema(description = "Идентификатор родительской темы")
-    UUID parentId
+    String name
 ) {
 }
