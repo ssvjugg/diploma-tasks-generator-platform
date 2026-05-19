@@ -1,20 +1,24 @@
 package ru.usernamedrew.edutaskllmworker.llm;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
 
 @Component
-@RequiredArgsConstructor
 public class LlmResponseParser {
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper llmResponseObjectMapper;
+
+    public LlmResponseParser(ObjectMapper objectMapper) {
+        this.llmResponseObjectMapper = objectMapper.copy()
+            .configure(JsonReadFeature.ALLOW_UNESCAPED_CONTROL_CHARS.mappedFeature(), true);
+    }
 
     public GeneratedTaskDraft parseTaskDraft(String content) {
         String json = extractJson(content);
         try {
-            return objectMapper.readValue(json, GeneratedTaskDraft.class);
+            return llmResponseObjectMapper.readValue(json, GeneratedTaskDraft.class);
         } catch (JsonProcessingException exception) {
             throw new LlmResponseValidationException("LLM response is not a valid task draft JSON", exception);
         }

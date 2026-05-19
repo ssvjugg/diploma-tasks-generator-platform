@@ -27,6 +27,8 @@ public class PromptBuilder {
             }
             Use Russian language for title, statement, inputFormat, outputFormat and topic names.
             Keep statements precise and suitable for a programming contest task.
+            Escape line breaks inside JSON string values as \\n.
+            Put examples only into testCases, not into statement.
             """;
     }
 
@@ -43,6 +45,7 @@ public class PromptBuilder {
 
             Generate one task draft.
             Provide at least one visible test case.
+            If the user asks for several examples, provide them as separate testCases.
             Do not include supported programming languages.
             """);
         return prompt.toString();
