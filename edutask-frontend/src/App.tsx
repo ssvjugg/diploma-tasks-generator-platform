@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Code2,
+  Filter,
   LogOut,
   LoaderCircle,
   MessageSquarePlus,
@@ -32,7 +33,8 @@ import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
 import type { Topic, TopicSummary } from './types/topic';
 
-const TASKS_PAGE_SIZE = 20;
+const DEFAULT_TASKS_PAGE_SIZE = 20;
+const TASK_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const TOPICS_PAGE_SIZE = 12;
 const TOPIC_SEARCH_LIMIT = 12;
 const TOPIC_SEARCH_DEBOUNCE_MS = 250;
@@ -648,10 +650,17 @@ type TasksListViewProps = {
   tasksPage: PageResponse<TaskSummary> | null;
   tasks: TaskSummary[];
   query: string;
+  difficultyFilter: TaskDifficulty | '';
+  pageSize: number;
+  mineOnly: boolean;
+  canFilterMine: boolean;
   currentPage: number;
   isLoading: boolean;
   error: string | null;
   onQueryChange: (value: string) => void;
+  onDifficultyChange: (value: TaskDifficulty | '') => void;
+  onPageSizeChange: (value: number) => void;
+  onMineOnlyChange: (value: boolean) => void;
   onCreateTaskClick: () => void;
   onLoadTasks: (page: number) => Promise<void>;
   onPreviousPage: () => void;
@@ -663,10 +672,17 @@ function TasksListView({
   tasksPage,
   tasks,
   query,
+  difficultyFilter,
+  pageSize,
+  mineOnly,
+  canFilterMine,
   currentPage,
   isLoading,
   error,
   onQueryChange,
+  onDifficultyChange,
+  onPageSizeChange,
+  onMineOnlyChange,
   onCreateTaskClick,
   onLoadTasks,
   onPreviousPage,
@@ -678,6 +694,36 @@ function TasksListView({
   const isLastPage = tasksPage?.last ?? true;
   const canGoBack = !isLoading && !error && currentPage > 0;
   const canGoForward = !isLoading && !error && !isLastPage;
+  const hasActiveFilters = Boolean(query.trim() || difficultyFilter || mineOnly);
+  const hasPopupFilters = Boolean(difficultyFilter || mineOnly);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isFilterMenuOpen) {
+      return undefined;
+    }
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+
+      if (target instanceof Node && !filterMenuRef.current?.contains(target)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+    };
+  }, [isFilterMenuOpen]);
+
+  const resetTaskFilters = () => {
+    onMineOnlyChange(false);
+    onDifficultyChange('');
+    setIsFilterMenuOpen(false);
+  };
 
   return (
     <>
@@ -699,20 +745,77 @@ function TasksListView({
         </button>
       </header>
 
-      <div className="list-toolbar">
-        <label className="search-field">
-          <Search size={18} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Поиск по названию"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
-        </label>
+      <div className="list-toolbar task-list-toolbar">
+        <div className="task-list-toolbar__controls">
+          <label className="search-field">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Поиск по названию и условию"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+          </label>
+
+          <div className="task-filter" ref={filterMenuRef}>
+            <button
+              className={`filter-button ${hasPopupFilters ? 'filter-button--active' : ''}`}
+              type="button"
+              onClick={() => setIsFilterMenuOpen((isOpen) => !isOpen)}
+              aria-expanded={isFilterMenuOpen}
+              aria-haspopup="menu"
+              aria-label="Фильтры задач"
+              title="Фильтры задач"
+            >
+              <Filter size={19} aria-hidden="true" />
+            </button>
+
+            {isFilterMenuOpen && (
+              <div className="task-filter__menu" role="menu" aria-label="Фильтры задач">
+                <label className="toggle-field" title={canFilterMine ? 'Показать только мои задачи' : 'Профиль пользователя еще загружается'}>
+                  <input
+                    type="checkbox"
+                    checked={mineOnly}
+                    disabled={!canFilterMine}
+                    onChange={(event) => onMineOnlyChange(event.target.checked)}
+                  />
+                  <span>Мои задачи</span>
+                </label>
+
+                <label className="select-field">
+                  <span>Сложность</span>
+                  <select
+                    value={difficultyFilter}
+                    onChange={(event) => onDifficultyChange(event.target.value as TaskDifficulty | '')}
+                  >
+                    <option value="">Любая</option>
+                    <option value="EASY">Легкая</option>
+                    <option value="MEDIUM">Средняя</option>
+                    <option value="HARD">Сложная</option>
+                  </select>
+                </label>
+
+                <label className="select-field">
+                  <span>На странице</span>
+                  <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+                    {TASK_PAGE_SIZE_OPTIONS.map((option) => (
+                      <option value={option} key={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button className="secondary-button filter-reset" type="button" onClick={resetTaskFilters} disabled={!hasPopupFilters}>
+                  Сбросить
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="list-toolbar__stats" aria-label="Сводка банка задач">
-          <span>{tasksPage?.totalElements ?? 0} всего</span>
-          <span>{tasks.length} показано</span>
-          <span>{TASKS_PAGE_SIZE} на странице</span>
+          <span>{tasks.length} из {tasksPage?.totalElements ?? 0}</span>
         </div>
       </div>
 
@@ -733,15 +836,15 @@ function TasksListView({
           </div>
         )}
 
-        {!isLoading && !error && tasks.length === 0 && !query && (
+        {!isLoading && !error && tasks.length === 0 && !hasActiveFilters && (
           <div className="state-view">
             <span>Задач пока нет</span>
           </div>
         )}
 
-        {!isLoading && !error && tasks.length === 0 && query && (
+        {!isLoading && !error && tasks.length === 0 && hasActiveFilters && (
           <div className="state-view">
-            <span>По этому запросу задач не найдено</span>
+            <span>По этим фильтрам задач не найдено</span>
           </div>
         )}
 
@@ -1117,6 +1220,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<TaskDifficulty | ''>('');
+  const [pageSize, setPageSize] = useState(DEFAULT_TASKS_PAGE_SIZE);
+  const [mineOnly, setMineOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
@@ -1138,14 +1244,20 @@ function App() {
     setError(null);
 
     try {
-      const data = await getTasks({ page, size: TASKS_PAGE_SIZE });
+      const data = await getTasks({
+        page,
+        size: pageSize,
+        query,
+        difficulty: difficultyFilter,
+        authorId: mineOnly ? auth.profile?.id : undefined,
+      });
       setTasksPage(data);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачи');
     } finally {
       setIsLoading(false);
     }
-  }, [auth.isAuthenticated]);
+  }, [auth.isAuthenticated, auth.profile?.id, difficultyFilter, mineOnly, pageSize, query]);
 
   useEffect(() => {
     if (auth.isAuthenticated && location.pathname === '/tasks') {
@@ -1161,16 +1273,7 @@ function App() {
     }
   }, [authError, isAuthenticated, isInitializing, login]);
 
-  const tasks = useMemo(() => {
-    const source = tasksPage?.content ?? [];
-    const normalizedQuery = query.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return source;
-    }
-
-    return source.filter((task) => task.title.toLowerCase().includes(normalizedQuery));
-  }, [query, tasksPage]);
+  const tasks = tasksPage?.content ?? [];
 
   const isLastPage = tasksPage?.last ?? true;
 
@@ -1182,6 +1285,26 @@ function App() {
     if (!isLastPage) {
       setCurrentPage((page) => page + 1);
     }
+  };
+
+  const handleTaskQueryChange = (value: string) => {
+    setQuery(value);
+    setCurrentPage(0);
+  };
+
+  const handleDifficultyFilterChange = (value: TaskDifficulty | '') => {
+    setDifficultyFilter(value);
+    setCurrentPage(0);
+  };
+
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setCurrentPage(0);
+  };
+
+  const handleMineOnlyChange = (value: boolean) => {
+    setMineOnly(value);
+    setCurrentPage(0);
   };
 
   const openCreateForm = () => {
@@ -1280,10 +1403,17 @@ function App() {
                 tasksPage={tasksPage}
                 tasks={tasks}
                 query={query}
+                difficultyFilter={difficultyFilter}
+                pageSize={pageSize}
+                mineOnly={mineOnly}
+                canFilterMine={Boolean(auth.profile?.id)}
                 currentPage={currentPage}
                 isLoading={isLoading}
                 error={error}
-                onQueryChange={setQuery}
+                onQueryChange={handleTaskQueryChange}
+                onDifficultyChange={handleDifficultyFilterChange}
+                onPageSizeChange={handlePageSizeChange}
+                onMineOnlyChange={handleMineOnlyChange}
                 onCreateTaskClick={openCreateForm}
                 onLoadTasks={loadTasks}
                 onPreviousPage={goToPreviousPage}

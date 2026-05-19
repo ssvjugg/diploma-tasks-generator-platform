@@ -5,6 +5,9 @@ import { apiFetch } from './client';
 type GetTasksParams = {
   page?: number;
   size?: number;
+  query?: string;
+  difficulty?: string;
+  authorId?: string;
 };
 
 export async function getTasks(params: GetTasksParams = {}): Promise<PageResponse<TaskSummary>> {
@@ -12,6 +15,18 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
     page: String(params.page ?? 0),
     size: String(params.size ?? 20),
   });
+
+  if (params.query?.trim()) {
+    searchParams.set('query', params.query.trim());
+  }
+
+  if (params.difficulty) {
+    searchParams.set('difficulty', params.difficulty);
+  }
+
+  if (params.authorId) {
+    searchParams.set('authorId', params.authorId);
+  }
 
   const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`);
 
