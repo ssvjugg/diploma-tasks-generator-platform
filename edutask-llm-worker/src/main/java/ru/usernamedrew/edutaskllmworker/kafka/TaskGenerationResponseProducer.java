@@ -15,10 +15,11 @@ import java.util.concurrent.CompletableFuture;
 @Component
 @RequiredArgsConstructor
 public class TaskGenerationResponseProducer {
-    private final KafkaTemplate<String, TaskGenerationResponseEvent> kafkaTemplate;
+    // TODO Подумать о том верное ли решение, использовать <Object, Object> вместо конкретной типизации
+    private final KafkaTemplate<Object, Object> kafkaTemplate;
     private final TaskGenerationKafkaProperties properties;
 
-    public CompletableFuture<SendResult<String, TaskGenerationResponseEvent>> send(TaskGenerationResponseEvent event) {
+    public CompletableFuture<SendResult<Object, Object>> send(TaskGenerationResponseEvent event) {
         Objects.requireNonNull(event, "event must not be null");
         Objects.requireNonNull(event.requestId(), "event.requestId must not be null");
 

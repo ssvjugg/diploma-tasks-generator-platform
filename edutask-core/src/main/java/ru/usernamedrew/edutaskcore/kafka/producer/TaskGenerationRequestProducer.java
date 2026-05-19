@@ -15,10 +15,10 @@ import java.util.concurrent.CompletableFuture;
 @Component
 @RequiredArgsConstructor
 public class TaskGenerationRequestProducer {
-    private final KafkaTemplate<String, TaskGenerationRequestedEvent> kafkaTemplate;
+    private final KafkaTemplate<Object, Object> kafkaTemplate;
     private final TaskGenerationKafkaProperties properties;
 
-    public CompletableFuture<SendResult<String, TaskGenerationRequestedEvent>> send(TaskGenerationRequestedEvent event) {
+    public CompletableFuture<SendResult<Object, Object>> send(TaskGenerationRequestedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
         Objects.requireNonNull(event.requestId(), "event.requestId must not be null");
 
