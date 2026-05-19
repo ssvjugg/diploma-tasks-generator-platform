@@ -52,3 +52,15 @@ edutask:
       task-generation-responses: ${TASK_GENERATION_RESPONSES_TOPIC:task-generation-responses}
       task-generation-requests-dlt: ${TASK_GENERATION_REQUESTS_DLT_TOPIC:task-generation-requests.dlt}
       task-generation-responses-dlt: ${TASK_GENERATION_RESPONSES_DLT_TOPIC:task-generation-responses.dlt}
+
+  llm-worker:
+    default-provider: ${EDUTASK_LLM_WORKER_DEFAULT_PROVIDER:DEFAULT_QWEN}
+    default-model: ${EDUTASK_LLM_WORKER_DEFAULT_MODEL:qwen2.5-coder:7b}
+    default-temperature: ${EDUTASK_LLM_WORKER_DEFAULT_TEMPERATURE:0.3}
+    max-concurrent-generations: ${EDUTASK_LLM_WORKER_MAX_CONCURRENT_GENERATIONS:2}
+    schema-version: ${EDUTASK_LLM_WORKER_SCHEMA_VERSION:1}
+    response-send-timeout: ${EDUTASK_LLM_WORKER_RESPONSE_SEND_TIMEOUT:10s}
+    concurrency-acquire-timeout: ${EDUTASK_LLM_WORKER_CONCURRENCY_ACQUIRE_TIMEOUT:30s}
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      request-timeout: ${OLLAMA_REQUEST_TIMEOUT:120s}
