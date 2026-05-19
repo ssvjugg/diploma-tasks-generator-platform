@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface TopicRepository extends JpaRepository<Topic, UUID> {
+    // TODO Убрать лишние запросы
     @EntityGraph(attributePaths = "parent")
     @Query("select t from Topic t where t.id = :id")
     Optional<Topic> findDetailedById(@Param("id") UUID id);
@@ -32,6 +33,23 @@ public interface TopicRepository extends JpaRepository<Topic, UUID> {
         where lower(t.name) like :queryPattern
         """)
     Page<Topic> findByNameLike(@Param("queryPattern") String queryPattern, Pageable pageable);
+
+    @EntityGraph(attributePaths = "parent")
+    @Query("""
+        select t
+        from Topic t
+        where t.parent is null
+        """)
+    Page<Topic> findByParentIsNull(Pageable pageable);
+
+    @EntityGraph(attributePaths = "parent")
+    @Query("""
+        select t
+        from Topic t
+        where lower(t.name) like :queryPattern
+          and t.parent is null
+        """)
+    Page<Topic> findByNameLikeAndParentIsNull(@Param("queryPattern") String queryPattern, Pageable pageable);
 
     @Query("""
         select new ru.usernamedrew.edutaskcommon.dto.topic.TopicSummary(t.id, t.name)

@@ -32,7 +32,7 @@ public class TopicService {
 
     @Transactional(readOnly = true)
     public Page<TopicResponse> findTopics(TopicSearchRequest request, Pageable pageable) {
-        return findTopics(normalizeQuery(request.query()), request.parentId(), pageable)
+        return findTopics(normalizeQuery(request.query()), request.parentId(), Boolean.TRUE.equals(request.rootOnly()), pageable)
             .map(topicMapper::toResponse);
     }
 
@@ -112,18 +112,26 @@ public class TopicService {
             .orElseThrow(() -> new ResourceNotFoundException("Parent topic not found: " + parentId));
     }
 
-    private Page<Topic> findTopics(String query, UUID parentId, Pageable pageable) {
-        if (query == null && parentId == null) {
+    private Page<Topic> findTopics(String query, UUID parentId, boolean rootOnly, Pageable pageable) {
+        if (parentId != null) {
+            if (query == null) {
+                return topicRepository.findByParentId(parentId, pageable);
+            }
+            return topicRepository.findByFilters("%" + query + "%", parentId, pageable);
+        }
+
+        if (rootOnly) {
+            if (query == null) {
+                return topicRepository.findByParentIsNull(pageable);
+            }
+            return topicRepository.findByNameLikeAndParentIsNull("%" + query + "%", pageable);
+        }
+
+        if (query == null) {
             return topicRepository.findAllDetailed(pageable);
         }
-        if (query == null) {
-            return topicRepository.findByParentId(parentId, pageable);
-        }
-        String queryPattern = "%" + query + "%";
-        if (parentId == null) {
-            return topicRepository.findByNameLike(queryPattern, pageable);
-        }
-        return topicRepository.findByFilters(queryPattern, parentId, pageable);
+
+        return topicRepository.findByNameLike("%" + query + "%", pageable);
     }
 
     private String normalizeQuery(String query) {

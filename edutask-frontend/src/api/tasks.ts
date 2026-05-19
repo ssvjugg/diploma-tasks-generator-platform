@@ -8,6 +8,7 @@ type GetTasksParams = {
   query?: string;
   difficulty?: string;
   authorId?: string;
+  topicId?: string;
 };
 
 export async function getTasks(params: GetTasksParams = {}): Promise<PageResponse<TaskSummary>> {
@@ -26,6 +27,10 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
 
   if (params.authorId) {
     searchParams.set('authorId', params.authorId);
+  }
+
+  if (params.topicId) {
+    searchParams.set('topicId', params.topicId);
   }
 
   const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`);

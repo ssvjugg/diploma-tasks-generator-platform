@@ -6,6 +6,9 @@ type GetTopicsParams = {
   page?: number;
   size?: number;
   query?: string;
+  parentId?: string;
+  rootOnly?: boolean;
+  signal?: AbortSignal;
 };
 
 type SearchTopicsParams = {
@@ -25,10 +28,32 @@ export async function getTopics(params: GetTopicsParams = {}): Promise<PageRespo
     searchParams.set('query', params.query.trim());
   }
 
-  const response = await apiFetch(`/api/v1/topics?${searchParams.toString()}`);
+  if (params.parentId) {
+    searchParams.set('parentId', params.parentId);
+  }
+
+  if (params.rootOnly) {
+    searchParams.set('rootOnly', 'true');
+  }
+
+  const response = await apiFetch(`/api/v1/topics?${searchParams.toString()}`, {
+    signal: params.signal,
+  });
 
   if (!response.ok) {
     throw new Error(`Не удалось получить темы: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function getTopic(id: string, options: { signal?: AbortSignal } = {}): Promise<Topic> {
+  const response = await apiFetch(`/api/v1/topics/${id}`, {
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не удалось получить тему: ${response.status}`);
   }
 
   return response.json();

@@ -468,6 +468,32 @@ h1 {
   border: 1px solid #d9d9d9;
   border-radius: 8px;
   background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+}
+
+.topic-card--interactive {
+  cursor: pointer;
+}
+
+.topic-card--interactive:hover {
+  border-color: #c7c7c7;
+  background: #fafafa;
+}
+
+.topic-card--interactive:focus-visible {
+  outline: 3px solid rgb(255 161 22 / 0.28);
+  outline-offset: 2px;
+}
+
+.topics-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topics-header__error {
+  margin-top: 10px;
 }
 
 .topic-card h2 {
@@ -1444,6 +1470,16 @@ h1 {
     align-items: stretch;
     flex-direction: column;
     gap: 16px;
+  }
+
+  .topics-header__actions {
+    width: 100%;
+  }
+
+  .topics-header__actions .text-button,
+  .topics-header__actions .secondary-button {
+    flex: 1;
+    justify-content: center;
   }
 
   h1 {
