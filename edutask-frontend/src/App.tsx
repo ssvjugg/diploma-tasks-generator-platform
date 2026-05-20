@@ -850,7 +850,7 @@ function TasksListView({
               type="button"
               onClick={() => setIsFilterMenuOpen((isOpen) => !isOpen)}
               aria-expanded={isFilterMenuOpen}
-              aria-haspopup="menu"
+              aria-controls="task-filter-panel"
               aria-label="Фильтры задач"
               title="Фильтры задач"
             >
@@ -858,7 +858,7 @@ function TasksListView({
             </button>
 
             {isFilterMenuOpen && (
-              <div className="task-filter__menu" role="menu" aria-label="Фильтры задач">
+              <div className="task-filter__menu" id="task-filter-panel" aria-label="Фильтры задач">
                 <label className="toggle-field" title={canFilterMine ? 'Показать только мои задачи' : 'Профиль пользователя еще загружается'}>
                   <input
                     type="checkbox"
@@ -1160,7 +1160,7 @@ function TaskDetailView() {
                 type="button"
                 onClick={() => setIsTaskMenuOpen((isOpen) => !isOpen)}
                 aria-expanded={isTaskMenuOpen}
-                aria-haspopup="menu"
+                aria-controls="task-actions-panel"
                 aria-label="Управление задачей"
                 title="Управление задачей"
               >
@@ -1168,8 +1168,8 @@ function TaskDetailView() {
               </button>
 
               {isTaskMenuOpen && (
-                <div className="action-menu" role="menu" aria-label="Управление задачей">
-                  <button className="action-menu__item" type="button" onClick={openEditForm} role="menuitem">
+                <div className="action-menu" id="task-actions-panel" aria-label="Управление задачей">
+                  <button className="action-menu__item" type="button" onClick={openEditForm}>
                     <Pencil size={16} aria-hidden="true" />
                     <span>Изменить</span>
                   </button>
@@ -1178,7 +1178,6 @@ function TaskDetailView() {
                     type="button"
                     onClick={handleDeleteTask}
                     disabled={isDeletingTask}
-                    role="menuitem"
                   >
                     <Trash2 size={16} aria-hidden="true" />
                     <span>{isDeletingTask ? 'Удаление' : 'Удалить'}</span>
@@ -1343,7 +1342,7 @@ function App() {
         page,
         size: pageSize,
         query,
-        difficulty: difficultyFilter,
+        difficulty: difficultyFilter || undefined,
         authorId: mineOnly ? auth.profile?.id : undefined,
         topicId: taskTopicId,
         signal,

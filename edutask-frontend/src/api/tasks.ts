@@ -1,12 +1,12 @@
 import type { PageResponse } from '../types/page';
-import type { TaskCreateRequest, TaskResponse, TaskSummary, TaskUpdateRequest } from '../types/task';
+import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from '../types/task';
 import { apiFetch } from './client';
 
 type GetTasksParams = {
   page?: number;
   size?: number;
   query?: string;
-  difficulty?: string;
+  difficulty?: TaskDifficulty;
   authorId?: string;
   topicId?: string;
   signal?: AbortSignal;
