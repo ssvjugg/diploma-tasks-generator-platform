@@ -10,6 +10,9 @@ public record TopicSearchRequest(
     String query,
 
     @Schema(description = "Идентификатор родительской темы")
-    UUID parentId
+    UUID parentId,
+
+    @Schema(description = "Искать только корневые темы без родителя", example = "true")
+    Boolean rootOnly
 ) {
 }
