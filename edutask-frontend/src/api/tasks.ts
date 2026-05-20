@@ -9,6 +9,7 @@ type GetTasksParams = {
   difficulty?: string;
   authorId?: string;
   topicId?: string;
+  signal?: AbortSignal;
 };
 
 export async function getTasks(params: GetTasksParams = {}): Promise<PageResponse<TaskSummary>> {
@@ -33,7 +34,9 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
     searchParams.set('topicId', params.topicId);
   }
 
-  const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`);
+  const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`, {
+    signal: params.signal,
+  });
 
   if (!response.ok) {
     throw new Error(`Не удалось получить задачи: ${response.status}`);

@@ -518,6 +518,7 @@ function TopicsView() {
   const [isSelectedTopicLoading, setIsSelectedTopicLoading] = useState(false);
   const [topicsError, setTopicsError] = useState<string | null>(null);
   const [selectedTopicError, setSelectedTopicError] = useState<string | null>(null);
+  const previousTopicIdRef = useRef<string | undefined>(topicId);
 
   const loadTopics = useCallback(async (page: number, query: string, parentId?: string, signal?: AbortSignal) => {
     setIsTopicsLoading(true);
@@ -546,6 +547,18 @@ function TopicsView() {
   }, []);
 
   useEffect(() => {
+    const topicChanged = previousTopicIdRef.current !== topicId;
+
+    if (topicChanged) {
+      previousTopicIdRef.current = topicId;
+
+      if (topicPageNumber !== 0 || topicQuery !== '') {
+        setTopicPageNumber(0);
+        setTopicQuery('');
+        return undefined;
+      }
+    }
+
     const controller = new AbortController();
     void loadTopics(topicPageNumber, topicQuery, topicId, controller.signal);
 
@@ -553,11 +566,6 @@ function TopicsView() {
       controller.abort();
     };
   }, [loadTopics, topicId, topicPageNumber, topicQuery]);
-
-  useEffect(() => {
-    setTopicPageNumber(0);
-    setTopicQuery('');
-  }, [topicId]);
 
   useEffect(() => {
     if (!topicId) {
@@ -1314,6 +1322,7 @@ function App() {
 
     return new URLSearchParams(location.search).get('topicId') ?? undefined;
   }, [location.pathname, location.search]);
+  const previousTaskTopicIdRef = useRef<string | undefined>(taskTopicId);
 
   const closeCreateForm = useCallback(() => {
     setIsCreateFormOpen(false);
@@ -1321,7 +1330,7 @@ function App() {
     setFormNote(null);
   }, []);
 
-  const loadTasks = useCallback(async (page: number) => {
+  const loadTasks = useCallback(async (page: number, signal?: AbortSignal) => {
     if (!auth.isAuthenticated) {
       return;
     }
@@ -1337,24 +1346,44 @@ function App() {
         difficulty: difficultyFilter,
         authorId: mineOnly ? auth.profile?.id : undefined,
         topicId: taskTopicId,
+        signal,
       });
       setTasksPage(data);
     } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
       setError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачи');
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
   }, [auth.isAuthenticated, auth.profile?.id, difficultyFilter, mineOnly, pageSize, query, taskTopicId]);
 
   useEffect(() => {
-    setCurrentPage(0);
-  }, [taskTopicId]);
-
-  useEffect(() => {
-    if (auth.isAuthenticated && location.pathname === '/tasks') {
-      void loadTasks(currentPage);
+    if (!auth.isAuthenticated || location.pathname !== '/tasks') {
+      return undefined;
     }
-  }, [auth.isAuthenticated, currentPage, loadTasks, location.pathname]);
+
+    const topicChanged = previousTaskTopicIdRef.current !== taskTopicId;
+
+    if (topicChanged) {
+      previousTaskTopicIdRef.current = taskTopicId;
+
+      if (currentPage !== 0) {
+        setCurrentPage(0);
+        return undefined;
+      }
+    }
+
+    const controller = new AbortController();
+    void loadTasks(currentPage, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [auth.isAuthenticated, currentPage, loadTasks, location.pathname, taskTopicId]);
 
   const { authError, isAuthenticated, isInitializing, login } = auth;
 
