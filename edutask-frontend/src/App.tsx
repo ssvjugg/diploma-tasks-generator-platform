@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   Code2,
+  Filter,
   LogOut,
   LoaderCircle,
   MessageSquarePlus,
@@ -26,13 +27,14 @@ import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
-import { getTopics, searchTopics } from './api/topics';
+import { getTopic, getTopics, searchTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
 import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
 import type { Topic, TopicSummary } from './types/topic';
 
-const TASKS_PAGE_SIZE = 20;
+const DEFAULT_TASKS_PAGE_SIZE = 20;
+const TASK_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const TOPICS_PAGE_SIZE = 12;
 const TOPIC_SEARCH_LIMIT = 12;
 const TOPIC_SEARCH_DEBOUNCE_MS = 250;
@@ -507,29 +509,95 @@ function TaskFormModal({
 }
 
 function TopicsView() {
+  const { topicId } = useParams<{ topicId: string }>();
   const [topicsPage, setTopicsPage] = useState<PageResponse<Topic> | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topicQuery, setTopicQuery] = useState('');
   const [topicPageNumber, setTopicPageNumber] = useState(0);
   const [isTopicsLoading, setIsTopicsLoading] = useState(true);
+  const [isSelectedTopicLoading, setIsSelectedTopicLoading] = useState(false);
   const [topicsError, setTopicsError] = useState<string | null>(null);
+  const [selectedTopicError, setSelectedTopicError] = useState<string | null>(null);
+  const previousTopicIdRef = useRef<string | undefined>(topicId);
 
-  const loadTopics = useCallback(async (page: number, query: string) => {
+  const loadTopics = useCallback(async (page: number, query: string, parentId?: string, signal?: AbortSignal) => {
     setIsTopicsLoading(true);
     setTopicsError(null);
 
     try {
-      const data = await getTopics({ page, query, size: TOPICS_PAGE_SIZE });
+      const data = await getTopics({
+        page,
+        query,
+        parentId,
+        rootOnly: !parentId,
+        size: TOPICS_PAGE_SIZE,
+        signal,
+      });
       setTopicsPage(data);
     } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
       setTopicsError(requestError instanceof Error ? requestError.message : 'Не удалось получить темы');
     } finally {
-      setIsTopicsLoading(false);
+      if (!signal?.aborted) {
+        setIsTopicsLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void loadTopics(topicPageNumber, topicQuery);
-  }, [loadTopics, topicPageNumber, topicQuery]);
+    const topicChanged = previousTopicIdRef.current !== topicId;
+
+    if (topicChanged) {
+      previousTopicIdRef.current = topicId;
+
+      if (topicPageNumber !== 0 || topicQuery !== '') {
+        setTopicPageNumber(0);
+        setTopicQuery('');
+        return undefined;
+      }
+    }
+
+    const controller = new AbortController();
+    void loadTopics(topicPageNumber, topicQuery, topicId, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [loadTopics, topicId, topicPageNumber, topicQuery]);
+
+  useEffect(() => {
+    if (!topicId) {
+      setSelectedTopic(null);
+      setSelectedTopicError(null);
+      setIsSelectedTopicLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setIsSelectedTopicLoading(true);
+    setSelectedTopicError(null);
+
+    void getTopic(topicId, { signal: controller.signal })
+      .then(setSelectedTopic)
+      .catch((requestError) => {
+        if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+          return;
+        }
+        setSelectedTopic(null);
+        setSelectedTopicError(requestError instanceof Error ? requestError.message : 'Не удалось получить тему');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsSelectedTopicLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [topicId]);
 
   const topics = topicsPage?.content ?? [];
   const totalPages = topicsPage?.totalPages ?? 0;
@@ -537,16 +605,35 @@ function TopicsView() {
   const isLastPage = topicsPage?.last ?? true;
   const canGoBack = !isTopicsLoading && !topicsError && topicPageNumber > 0;
   const canGoForward = !isTopicsLoading && !topicsError && !isLastPage;
+  const parentPath = selectedTopic?.parentId ? `/topics/${selectedTopic.parentId}` : '/topics';
+  const title = selectedTopic?.name ?? (isSelectedTopicLoading ? 'Загрузка темы' : 'Темы');
+  const emptyMessage = topicId ? 'Вложенные темы не найдены' : 'Корневые темы не найдены';
 
   return (
     <>
       <header className="workspace__header">
         <div>
-          <h1 id="page-title">Темы</h1>
-          <p className="workspace__subtitle">
-            Темы помогают группировать задачи по разделам программирования и быстрее находить нужный материал.
-          </p>
+          <h1 id="page-title">{title}</h1>
+          {!topicId && (
+            <p className="workspace__subtitle">
+              Темы помогают группировать задачи по разделам программирования и быстрее находить нужный материал.
+            </p>
+          )}
+          {selectedTopicError && <p className="form-error topics-header__error">{selectedTopicError}</p>}
         </div>
+
+        {topicId && (
+          <div className="topics-header__actions">
+            <Link className="secondary-button secondary-button--icon" to={parentPath}>
+              <ArrowLeft size={17} aria-hidden="true" />
+              <span>К родителю</span>
+            </Link>
+            <Link className="text-button text-button--icon" to={`/tasks?topicId=${topicId}`}>
+              <ClipboardList size={17} aria-hidden="true" />
+              <span>Задачи</span>
+            </Link>
+          </div>
+        )}
       </header>
 
       <div className="list-toolbar topics-toolbar">
@@ -554,7 +641,7 @@ function TopicsView() {
           <Search size={18} aria-hidden="true" />
           <input
             type="search"
-            placeholder="Поиск по теме"
+            placeholder={topicId ? 'Поиск среди вложенных тем' : 'Поиск по теме'}
             value={topicQuery}
             onChange={(event) => {
               setTopicQuery(event.target.value);
@@ -584,7 +671,7 @@ function TopicsView() {
         {!isTopicsLoading && topicsError && (
           <div className="state-view state-view--error">
             <span>{topicsError}</span>
-            <button className="text-button" type="button" onClick={() => loadTopics(topicPageNumber, topicQuery)}>
+            <button className="text-button" type="button" onClick={() => loadTopics(topicPageNumber, topicQuery, topicId)}>
               Повторить
             </button>
           </div>
@@ -592,18 +679,18 @@ function TopicsView() {
 
         {!isTopicsLoading && !topicsError && topics.length === 0 && (
           <div className="state-view">
-            <span>Темы не найдены</span>
+            <span>{emptyMessage}</span>
           </div>
         )}
 
         {!isTopicsLoading && !topicsError && topics.length > 0 && (
           <div className="topics-grid">
             {topics.map((topic) => (
-              <article className="topic-card" key={topic.id}>
+              <Link className="topic-card topic-card--interactive" to={`/topics/${topic.id}`} key={topic.id}>
                 <h2>
                   <span>{topic.name}</span>
                 </h2>
-              </article>
+              </Link>
             ))}
           </div>
         )}
@@ -648,10 +735,18 @@ type TasksListViewProps = {
   tasksPage: PageResponse<TaskSummary> | null;
   tasks: TaskSummary[];
   query: string;
+  difficultyFilter: TaskDifficulty | '';
+  pageSize: number;
+  mineOnly: boolean;
+  canFilterMine: boolean;
+  hasTopicFilter: boolean;
   currentPage: number;
   isLoading: boolean;
   error: string | null;
   onQueryChange: (value: string) => void;
+  onDifficultyChange: (value: TaskDifficulty | '') => void;
+  onPageSizeChange: (value: number) => void;
+  onMineOnlyChange: (value: boolean) => void;
   onCreateTaskClick: () => void;
   onLoadTasks: (page: number) => Promise<void>;
   onPreviousPage: () => void;
@@ -663,10 +758,18 @@ function TasksListView({
   tasksPage,
   tasks,
   query,
+  difficultyFilter,
+  pageSize,
+  mineOnly,
+  canFilterMine,
+  hasTopicFilter,
   currentPage,
   isLoading,
   error,
   onQueryChange,
+  onDifficultyChange,
+  onPageSizeChange,
+  onMineOnlyChange,
   onCreateTaskClick,
   onLoadTasks,
   onPreviousPage,
@@ -678,6 +781,36 @@ function TasksListView({
   const isLastPage = tasksPage?.last ?? true;
   const canGoBack = !isLoading && !error && currentPage > 0;
   const canGoForward = !isLoading && !error && !isLastPage;
+  const hasActiveFilters = Boolean(query.trim() || difficultyFilter || mineOnly || hasTopicFilter);
+  const hasPopupFilters = Boolean(difficultyFilter || mineOnly);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isFilterMenuOpen) {
+      return undefined;
+    }
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+
+      if (target instanceof Node && !filterMenuRef.current?.contains(target)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+    };
+  }, [isFilterMenuOpen]);
+
+  const resetTaskFilters = () => {
+    onMineOnlyChange(false);
+    onDifficultyChange('');
+    setIsFilterMenuOpen(false);
+  };
 
   return (
     <>
@@ -699,20 +832,77 @@ function TasksListView({
         </button>
       </header>
 
-      <div className="list-toolbar">
-        <label className="search-field">
-          <Search size={18} aria-hidden="true" />
-          <input
-            type="search"
-            placeholder="Поиск по названию"
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-          />
-        </label>
+      <div className="list-toolbar task-list-toolbar">
+        <div className="task-list-toolbar__controls">
+          <label className="search-field">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              placeholder="Поиск по названию и условию"
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+            />
+          </label>
+
+          <div className="task-filter" ref={filterMenuRef}>
+            <button
+              className={`filter-button ${hasPopupFilters ? 'filter-button--active' : ''}`}
+              type="button"
+              onClick={() => setIsFilterMenuOpen((isOpen) => !isOpen)}
+              aria-expanded={isFilterMenuOpen}
+              aria-controls="task-filter-panel"
+              aria-label="Фильтры задач"
+              title="Фильтры задач"
+            >
+              <Filter size={19} aria-hidden="true" />
+            </button>
+
+            {isFilterMenuOpen && (
+              <div className="task-filter__menu" id="task-filter-panel" aria-label="Фильтры задач">
+                <label className="toggle-field" title={canFilterMine ? 'Показать только мои задачи' : 'Профиль пользователя еще загружается'}>
+                  <input
+                    type="checkbox"
+                    checked={mineOnly}
+                    disabled={!canFilterMine}
+                    onChange={(event) => onMineOnlyChange(event.target.checked)}
+                  />
+                  <span>Мои задачи</span>
+                </label>
+
+                <label className="select-field">
+                  <span>Сложность</span>
+                  <select
+                    value={difficultyFilter}
+                    onChange={(event) => onDifficultyChange(event.target.value as TaskDifficulty | '')}
+                  >
+                    <option value="">Любая</option>
+                    <option value="EASY">Легкая</option>
+                    <option value="MEDIUM">Средняя</option>
+                    <option value="HARD">Сложная</option>
+                  </select>
+                </label>
+
+                <label className="select-field">
+                  <span>На странице</span>
+                  <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+                    {TASK_PAGE_SIZE_OPTIONS.map((option) => (
+                      <option value={option} key={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <button className="secondary-button filter-reset" type="button" onClick={resetTaskFilters} disabled={!hasPopupFilters}>
+                  Сбросить
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className="list-toolbar__stats" aria-label="Сводка банка задач">
-          <span>{tasksPage?.totalElements ?? 0} всего</span>
-          <span>{tasks.length} показано</span>
-          <span>{TASKS_PAGE_SIZE} на странице</span>
+          <span>{tasks.length} из {tasksPage?.totalElements ?? 0}</span>
         </div>
       </div>
 
@@ -733,15 +923,15 @@ function TasksListView({
           </div>
         )}
 
-        {!isLoading && !error && tasks.length === 0 && !query && (
+        {!isLoading && !error && tasks.length === 0 && !hasActiveFilters && (
           <div className="state-view">
             <span>Задач пока нет</span>
           </div>
         )}
 
-        {!isLoading && !error && tasks.length === 0 && query && (
+        {!isLoading && !error && tasks.length === 0 && hasActiveFilters && (
           <div className="state-view">
-            <span>По этому запросу задач не найдено</span>
+            <span>По этим фильтрам задач не найдено</span>
           </div>
         )}
 
@@ -970,7 +1160,7 @@ function TaskDetailView() {
                 type="button"
                 onClick={() => setIsTaskMenuOpen((isOpen) => !isOpen)}
                 aria-expanded={isTaskMenuOpen}
-                aria-haspopup="menu"
+                aria-controls="task-actions-panel"
                 aria-label="Управление задачей"
                 title="Управление задачей"
               >
@@ -978,8 +1168,8 @@ function TaskDetailView() {
               </button>
 
               {isTaskMenuOpen && (
-                <div className="action-menu" role="menu" aria-label="Управление задачей">
-                  <button className="action-menu__item" type="button" onClick={openEditForm} role="menuitem">
+                <div className="action-menu" id="task-actions-panel" aria-label="Управление задачей">
+                  <button className="action-menu__item" type="button" onClick={openEditForm}>
                     <Pencil size={16} aria-hidden="true" />
                     <span>Изменить</span>
                   </button>
@@ -988,7 +1178,6 @@ function TaskDetailView() {
                     type="button"
                     onClick={handleDeleteTask}
                     disabled={isDeletingTask}
-                    role="menuitem"
                   >
                     <Trash2 size={16} aria-hidden="true" />
                     <span>{isDeletingTask ? 'Удаление' : 'Удалить'}</span>
@@ -1117,11 +1306,22 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<TaskDifficulty | ''>('');
+  const [pageSize, setPageSize] = useState(DEFAULT_TASKS_PAGE_SIZE);
+  const [mineOnly, setMineOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formNote, setFormNote] = useState<string | null>(null);
+  const taskTopicId = useMemo(() => {
+    if (location.pathname !== '/tasks') {
+      return undefined;
+    }
+
+    return new URLSearchParams(location.search).get('topicId') ?? undefined;
+  }, [location.pathname, location.search]);
+  const previousTaskTopicIdRef = useRef<string | undefined>(taskTopicId);
 
   const closeCreateForm = useCallback(() => {
     setIsCreateFormOpen(false);
@@ -1129,7 +1329,7 @@ function App() {
     setFormNote(null);
   }, []);
 
-  const loadTasks = useCallback(async (page: number) => {
+  const loadTasks = useCallback(async (page: number, signal?: AbortSignal) => {
     if (!auth.isAuthenticated) {
       return;
     }
@@ -1138,20 +1338,51 @@ function App() {
     setError(null);
 
     try {
-      const data = await getTasks({ page, size: TASKS_PAGE_SIZE });
+      const data = await getTasks({
+        page,
+        size: pageSize,
+        query,
+        difficulty: difficultyFilter || undefined,
+        authorId: mineOnly ? auth.profile?.id : undefined,
+        topicId: taskTopicId,
+        signal,
+      });
       setTasksPage(data);
     } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
       setError(requestError instanceof Error ? requestError.message : 'Не удалось получить задачи');
     } finally {
-      setIsLoading(false);
+      if (!signal?.aborted) {
+        setIsLoading(false);
+      }
     }
-  }, [auth.isAuthenticated]);
+  }, [auth.isAuthenticated, auth.profile?.id, difficultyFilter, mineOnly, pageSize, query, taskTopicId]);
 
   useEffect(() => {
-    if (auth.isAuthenticated && location.pathname === '/tasks') {
-      void loadTasks(currentPage);
+    if (!auth.isAuthenticated || location.pathname !== '/tasks') {
+      return undefined;
     }
-  }, [auth.isAuthenticated, currentPage, loadTasks, location.pathname]);
+
+    const topicChanged = previousTaskTopicIdRef.current !== taskTopicId;
+
+    if (topicChanged) {
+      previousTaskTopicIdRef.current = taskTopicId;
+
+      if (currentPage !== 0) {
+        setCurrentPage(0);
+        return undefined;
+      }
+    }
+
+    const controller = new AbortController();
+    void loadTasks(currentPage, controller.signal);
+
+    return () => {
+      controller.abort();
+    };
+  }, [auth.isAuthenticated, currentPage, loadTasks, location.pathname, taskTopicId]);
 
   const { authError, isAuthenticated, isInitializing, login } = auth;
 
@@ -1161,16 +1392,7 @@ function App() {
     }
   }, [authError, isAuthenticated, isInitializing, login]);
 
-  const tasks = useMemo(() => {
-    const source = tasksPage?.content ?? [];
-    const normalizedQuery = query.trim().toLowerCase();
-
-    if (!normalizedQuery) {
-      return source;
-    }
-
-    return source.filter((task) => task.title.toLowerCase().includes(normalizedQuery));
-  }, [query, tasksPage]);
+  const tasks = tasksPage?.content ?? [];
 
   const isLastPage = tasksPage?.last ?? true;
 
@@ -1182,6 +1404,26 @@ function App() {
     if (!isLastPage) {
       setCurrentPage((page) => page + 1);
     }
+  };
+
+  const handleTaskQueryChange = (value: string) => {
+    setQuery(value);
+    setCurrentPage(0);
+  };
+
+  const handleDifficultyFilterChange = (value: TaskDifficulty | '') => {
+    setDifficultyFilter(value);
+    setCurrentPage(0);
+  };
+
+  const handlePageSizeChange = (value: number) => {
+    setPageSize(value);
+    setCurrentPage(0);
+  };
+
+  const handleMineOnlyChange = (value: boolean) => {
+    setMineOnly(value);
+    setCurrentPage(0);
   };
 
   const openCreateForm = () => {
@@ -1280,10 +1522,18 @@ function App() {
                 tasksPage={tasksPage}
                 tasks={tasks}
                 query={query}
+                difficultyFilter={difficultyFilter}
+                pageSize={pageSize}
+                mineOnly={mineOnly}
+                canFilterMine={Boolean(auth.profile?.id)}
+                hasTopicFilter={Boolean(taskTopicId)}
                 currentPage={currentPage}
                 isLoading={isLoading}
                 error={error}
-                onQueryChange={setQuery}
+                onQueryChange={handleTaskQueryChange}
+                onDifficultyChange={handleDifficultyFilterChange}
+                onPageSizeChange={handlePageSizeChange}
+                onMineOnlyChange={handleMineOnlyChange}
                 onCreateTaskClick={openCreateForm}
                 onLoadTasks={loadTasks}
                 onPreviousPage={goToPreviousPage}
@@ -1294,6 +1544,7 @@ function App() {
           />
           <Route path="/tasks/:taskId" element={<TaskDetailView />} />
           <Route path="/topics" element={<TopicsView />} />
+          <Route path="/topics/:topicId" element={<TopicsView />} />
           <Route path="*" element={<Navigate to="/tasks" replace />} />
         </Routes>
       </section>

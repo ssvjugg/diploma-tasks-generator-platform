@@ -1,10 +1,15 @@
 import type { PageResponse } from '../types/page';
-import type { TaskCreateRequest, TaskResponse, TaskSummary, TaskUpdateRequest } from '../types/task';
+import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from '../types/task';
 import { apiFetch } from './client';
 
 type GetTasksParams = {
   page?: number;
   size?: number;
+  query?: string;
+  difficulty?: TaskDifficulty;
+  authorId?: string;
+  topicId?: string;
+  signal?: AbortSignal;
 };
 
 export async function getTasks(params: GetTasksParams = {}): Promise<PageResponse<TaskSummary>> {
@@ -13,7 +18,25 @@ export async function getTasks(params: GetTasksParams = {}): Promise<PageRespons
     size: String(params.size ?? 20),
   });
 
-  const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`);
+  if (params.query?.trim()) {
+    searchParams.set('query', params.query.trim());
+  }
+
+  if (params.difficulty) {
+    searchParams.set('difficulty', params.difficulty);
+  }
+
+  if (params.authorId) {
+    searchParams.set('authorId', params.authorId);
+  }
+
+  if (params.topicId) {
+    searchParams.set('topicId', params.topicId);
+  }
+
+  const response = await apiFetch(`/api/v1/tasks?${searchParams.toString()}`, {
+    signal: params.signal,
+  });
 
   if (!response.ok) {
     throw new Error(`Не удалось получить задачи: ${response.status}`);
