@@ -89,7 +89,7 @@ public class TestCaseService {
     private TestCase findTaskTestCase(UUID taskId, UUID testCaseId) {
         return testCaseRepository.findByIdAndTaskId(testCaseId, taskId)
             .orElseThrow(() -> new ResourceNotFoundException(
-                "TestCase not found for task: " + testCaseId
+                "TestCase not found for taskId: " + taskId + ", testCaseId: " + testCaseId
             ));
     }
 }
