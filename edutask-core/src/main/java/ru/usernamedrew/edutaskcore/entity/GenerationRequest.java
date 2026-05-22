@@ -12,6 +12,10 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import ru.usernamedrew.edutaskcommon.dto.generation.TaskGenerationStatus;
+import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
 
 @Getter
 @Setter
@@ -30,8 +34,8 @@ public class GenerationRequest extends BaseEntity {
     private String finalPrompt;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private GenerationRequestStatus status;
+    @Column(nullable = false, length = 20)
+    private TaskGenerationStatus status;
 
     @Column(name = "model_provider", length = 50)
     private String modelProvider;
@@ -43,11 +47,10 @@ public class GenerationRequest extends BaseEntity {
     @JoinColumn(name = "generated_task_id", unique = true)
     private Task generatedTask;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "generated_draft", columnDefinition = "jsonb")
+    private GeneratedTaskDraft generatedDraft;
+
     @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
-
-    public enum GenerationRequestStatus {
-        QUEUED, PROCESSING, DONE, FAILED
-    }
 }
-

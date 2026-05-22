@@ -1,3 +1,77 @@
+server:
+  port: 8082
+
 spring:
   application:
     name: edutask-llm-worker
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 10
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
+        linger.ms: 10
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:edutask-llm-worker-task-generation}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: ru.usernamedrew.edutaskcommon.event.generation
+        isolation.level: read_committed
+    listener:
+      missing-topics-fatal: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+edutask:
+  kafka:
+    partitions: ${EDUTASK_KAFKA_PARTITIONS:3}
+    replication-factor: ${EDUTASK_KAFKA_REPLICATION_FACTOR:1}
+    consumer-concurrency: ${EDUTASK_KAFKA_CONSUMER_CONCURRENCY:2}
+    retry:
+      max-attempts: ${EDUTASK_KAFKA_RETRY_MAX_ATTEMPTS:3}
+      backoff: ${EDUTASK_KAFKA_RETRY_BACKOFF:2s}
+    topics:
+      task-generation-requests: ${TASK_GENERATION_REQUESTS_TOPIC:task-generation-requests}
+      task-generation-responses: ${TASK_GENERATION_RESPONSES_TOPIC:task-generation-responses}
+      task-generation-requests-dlt: ${TASK_GENERATION_REQUESTS_DLT_TOPIC:task-generation-requests.dlt}
+      task-generation-responses-dlt: ${TASK_GENERATION_RESPONSES_DLT_TOPIC:task-generation-responses.dlt}
+
+  llm-worker:
+    default-temperature: ${EDUTASK_LLM_WORKER_DEFAULT_TEMPERATURE:0.3}
+    max-concurrent-generations: ${EDUTASK_LLM_WORKER_MAX_CONCURRENT_GENERATIONS:2}
+    schema-version: ${EDUTASK_LLM_WORKER_SCHEMA_VERSION:1}
+    response-send-timeout: ${EDUTASK_LLM_WORKER_RESPONSE_SEND_TIMEOUT:10s}
+    concurrency-acquire-timeout: ${EDUTASK_LLM_WORKER_CONCURRENCY_ACQUIRE_TIMEOUT:30s}
+    providers:
+      openai:
+        type: OPENAI_COMPATIBLE
+        base-url: ${OPENAI_BASE_URL:https://gatellm.ru/v1}
+        api-key: ${OPENAI_API_KEY:}
+        model: ${OPENAI_MODEL:openai/gpt-5.4-nano}
+        max-tokens: ${OPENAI_MAX_TOKENS:2048}
+        request-timeout: ${OPENAI_REQUEST_TIMEOUT:120s}
+      ollama:
+        type: OLLAMA
+        base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+        model: ${OLLAMA_MODEL:qwen2.5-coder:7b}
+        request-timeout: ${OLLAMA_REQUEST_TIMEOUT:120s}
