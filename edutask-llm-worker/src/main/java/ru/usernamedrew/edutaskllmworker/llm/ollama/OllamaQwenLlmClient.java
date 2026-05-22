@@ -1,43 +1,47 @@
 package ru.usernamedrew.edutaskllmworker.llm.ollama;
 
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Bean;
-import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.ollama.OllamaChatModel;
+import org.springframework.ai.ollama.api.OllamaApi;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.RestClient;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
+import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties.Provider;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClient;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClientException;
-import ru.usernamedrew.edutaskllmworker.llm.LlmClientRegistration;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequest;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationResult;
-import ru.usernamedrew.edutaskllmworker.llm.LlmProviderType;
 import ru.usernamedrew.edutaskllmworker.llm.LlmResponseParser;
 import ru.usernamedrew.edutaskllmworker.llm.LlmResponseValidator;
 import ru.usernamedrew.edutaskllmworker.llm.PromptBuilder;
 
 import java.math.BigDecimal;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 
-@Component
 public class OllamaQwenLlmClient implements LlmClient {
-    private final WebClient webClient;
+    private final String providerName;
+    private final Provider provider;
+    private final ChatClient chatClient;
     private final LlmWorkerProperties properties;
     private final PromptBuilder promptBuilder;
     private final LlmResponseParser responseParser;
     private final LlmResponseValidator responseValidator;
 
     public OllamaQwenLlmClient(
-        @Qualifier("ollamaWebClient") WebClient webClient,
+        String providerName,
+        Provider provider,
         LlmWorkerProperties properties,
         PromptBuilder promptBuilder,
         LlmResponseParser responseParser,
         LlmResponseValidator responseValidator
     ) {
-        this.webClient = webClient;
+        this.providerName = providerName;
+        this.provider = provider;
+        this.chatClient = createChatClient(provider);
         this.properties = properties;
         this.promptBuilder = promptBuilder;
         this.responseParser = responseParser;
@@ -48,76 +52,78 @@ public class OllamaQwenLlmClient implements LlmClient {
     public LlmGenerationResult generateTask(LlmGenerationRequest request) {
         Instant startedAt = Instant.now();
         String model = request.model() == null || request.model().isBlank()
-            ? properties.getDefaultModel()
+            ? provider.getModel()
             : request.model().trim();
 
-        OllamaChatRequest ollamaRequest = new OllamaChatRequest(
-            model,
-            List.of(
-                new OllamaMessage("system", promptBuilder.buildSystemPrompt()),
-                new OllamaMessage("user", promptBuilder.buildUserPrompt(request))
-            ),
-            false,
-            Map.of("temperature", temperature(request.temperature()))
-        );
-
-        OllamaChatResponse response;
+        String response;
         try {
-            response = webClient.post()
-                .uri("/api/chat")
-                .bodyValue(ollamaRequest)
-                .retrieve()
-                .bodyToMono(OllamaChatResponse.class)
-                .timeout(properties.getOllama().getRequestTimeout())
-                .block(properties.getOllama().getRequestTimeout().plusSeconds(1));
+            response = chatClient
+                .prompt()
+                .options(ollamaOptions(model, request.temperature()))
+                .system(promptBuilder.buildSystemPrompt())
+                .user(promptBuilder.buildUserPrompt(request))
+                .call()
+                .content();
         } catch (RuntimeException exception) {
-            throw new LlmClientException("Failed to call Ollama Qwen model", exception);
+            throw new LlmClientException("Failed to call Ollama model", exception);
         }
 
-        if (response == null || response.message() == null || response.message().content() == null) {
+        if (response == null || response.isBlank()) {
             throw new LlmClientException("Ollama returned empty response", null);
         }
 
-        GeneratedTaskDraft draft = responseParser.parseTaskDraft(response.message().content());
+        GeneratedTaskDraft draft = responseParser.parseTaskDraft(response);
         responseValidator.validate(draft);
         return new LlmGenerationResult(
             draft,
-            request.providerType().name(),
+            providerName,
             model,
             Duration.between(startedAt, Instant.now())
         );
     }
 
-    @Bean
-    public LlmClientRegistration defaultQwenRegistration(OllamaQwenLlmClient client) {
-        return new LlmClientRegistration(LlmProviderType.DEFAULT_QWEN, client);
+    private ChatClient createChatClient(Provider provider) {
+        OllamaApi ollamaApi = OllamaApi.builder()
+            .baseUrl(provider.getBaseUrl())
+            .restClientBuilder(restClientBuilder(provider.getRequestTimeout()))
+            .build();
+
+        OllamaChatModel chatModel = OllamaChatModel.builder()
+            .ollamaApi(ollamaApi)
+            .defaultOptions(defaultOptions(provider))
+            .build();
+
+        return ChatClient.create(chatModel);
     }
 
-    @Bean
-    public LlmClientRegistration ollamaRegistration(OllamaQwenLlmClient client) {
-        return new LlmClientRegistration(LlmProviderType.OLLAMA, client);
+    private RestClient.Builder restClientBuilder(Duration requestTimeout) {
+        HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(requestTimeout)
+            .build();
+
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(requestTimeout);
+
+        return RestClient.builder()
+            .requestFactory(requestFactory);
+    }
+
+    private OllamaChatOptions defaultOptions(Provider provider) {
+        OllamaChatOptions.Builder options = OllamaChatOptions.builder();
+        options.model(provider.getModel());
+        options.maxTokens(provider.getMaxTokens());
+        return options.build();
+    }
+
+    private OllamaChatOptions.Builder ollamaOptions(String model, BigDecimal requestedTemperature) {
+        OllamaChatOptions.Builder options = OllamaChatOptions.builder();
+        options.model(model);
+        options.temperature(temperature(requestedTemperature).doubleValue());
+        options.maxTokens(provider.getMaxTokens());
+        return options;
     }
 
     private BigDecimal temperature(BigDecimal requestedTemperature) {
         return requestedTemperature == null ? properties.getDefaultTemperature() : requestedTemperature;
-    }
-
-    private record OllamaChatRequest(
-        String model,
-        List<OllamaMessage> messages,
-        boolean stream,
-        Map<String, Object> options
-    ) {
-    }
-
-    private record OllamaMessage(
-        String role,
-        String content
-    ) {
-    }
-
-    private record OllamaChatResponse(
-        OllamaMessage message
-    ) {
     }
 }

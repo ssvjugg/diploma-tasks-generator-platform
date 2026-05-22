@@ -3,7 +3,6 @@ package ru.usernamedrew.edutaskcore.config;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,12 +17,6 @@ import java.time.Duration;
 @Validated
 @ConfigurationProperties(prefix = "edutask.generation")
 public class TaskGenerationProperties {
-    @NotBlank
-    private String defaultProvider = "DEFAULT_QWEN";
-
-    @NotBlank
-    private String defaultModel = "qwen2.5-coder:7b";
-
     @NotNull
     @DecimalMin("0.0")
     @DecimalMax("2.0")

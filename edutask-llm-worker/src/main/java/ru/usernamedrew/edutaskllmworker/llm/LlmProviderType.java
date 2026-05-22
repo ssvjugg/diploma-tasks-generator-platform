@@ -1,9 +1,10 @@
 package ru.usernamedrew.edutaskllmworker.llm;
 
 public enum LlmProviderType {
-    DEFAULT_QWEN,
     OLLAMA,
-    OPENAI_COMPATIBLE,
-    GEMINI,
-    CUSTOM_HTTP
+    OPENAI_COMPATIBLE;
+
+    public boolean isLocal() {
+        return this == OLLAMA;
+    }
 }

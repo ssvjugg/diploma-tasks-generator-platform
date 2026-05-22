@@ -8,11 +8,14 @@ import java.util.UUID;
 
 public record LlmGenerationRequest(
     UUID requestId,
+    String providerName,
     String prompt,
     Set<UUID> topicIds,
     TaskDifficulty difficulty,
-    LlmProviderType providerType,
     String model,
     BigDecimal temperature
 ) {
+    public LlmGenerationRequest {
+        topicIds = topicIds == null ? Set.of() : Set.copyOf(topicIds);
+    }
 }

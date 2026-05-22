@@ -6,6 +6,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import ru.usernamedrew.edutaskcommon.dto.generation.TaskGenerationCreateRequest;
 import ru.usernamedrew.edutaskcommon.dto.generation.TaskGenerationResponse;
 import ru.usernamedrew.edutaskcommon.dto.generation.TaskGenerationStatus;
@@ -33,6 +35,7 @@ public class TaskGenerationService {
     private final UserProfileService userProfileService;
     private final TopicService topicService;
     private final TaskGenerationRequestProducer requestProducer;
+    private final TaskGenerationStatusService statusService;
     private final TaskGenerationProperties properties;
     private final TaskGenerationMapper taskGenerationMapper;
 
@@ -41,8 +44,8 @@ public class TaskGenerationService {
         UserProfile user = userProfileService.resolveCurrentUser(jwt);
         validateTopics(request.topicIds());
 
-        String provider = valueOrDefault(request.provider(), properties.getDefaultProvider());
-        String model = valueOrDefault(request.model(), properties.getDefaultModel());
+        String provider = trimToNull(request.provider());
+        String model = trimToNull(request.model());
 
         GenerationRequest generationRequest = new GenerationRequest();
         generationRequest.setUser(user);
@@ -67,15 +70,7 @@ public class TaskGenerationService {
             properties.getSchemaVersion()
         );
 
-        try {
-            requestProducer.send(event)
-                .get(properties.getKafkaSendTimeout().toMillis(), TimeUnit.MILLISECONDS);
-        } catch (Exception exception) {
-            log.error("Failed to enqueue task generation request, requestId={}", savedRequest.getId(), exception);
-            savedRequest.setStatus(TaskGenerationStatus.FAILED);
-            savedRequest.setErrorMessage(ENQUEUE_ERROR_MESSAGE);
-            generationRequestRepository.flush();
-        }
+        enqueueAfterCommit(event);
 
         return taskGenerationMapper.toResponse(savedRequest);
     }
@@ -101,6 +96,39 @@ public class TaskGenerationService {
         }
     }
 
+    private void enqueueAfterCommit(TaskGenerationRequestedEvent event) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            enqueue(event);
+            return;
+        }
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                enqueue(event);
+            }
+        });
+    }
+
+    private void enqueue(TaskGenerationRequestedEvent event) {
+        try {
+            requestProducer.send(event)
+                .orTimeout(properties.getKafkaSendTimeout().toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((result, exception) -> {
+                    if (exception != null) {
+                        markEnqueueFailed(event.requestId(), exception);
+                    }
+                });
+        } catch (RuntimeException exception) {
+            markEnqueueFailed(event.requestId(), exception);
+        }
+    }
+
+    private void markEnqueueFailed(UUID requestId, Throwable exception) {
+        log.error("Failed to enqueue task generation request, requestId={}", requestId, exception);
+        statusService.markFailed(requestId, ENQUEUE_ERROR_MESSAGE);
+    }
+
     private void assertCanRead(GenerationRequest generationRequest, UserProfile currentUser) {
         boolean owner = generationRequest.getUser().getId().equals(currentUser.getId());
         boolean admin = currentUser.getRole() == UserProfile.UserRole.ADMIN;
@@ -109,7 +137,10 @@ public class TaskGenerationService {
         }
     }
 
-    private String valueOrDefault(String value, String defaultValue) {
-        return value == null || value.isBlank() ? defaultValue : value.trim();
+    private String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

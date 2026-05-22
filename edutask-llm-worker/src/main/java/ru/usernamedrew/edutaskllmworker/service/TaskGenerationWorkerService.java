@@ -9,13 +9,11 @@ import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationResponseEven
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClient;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClientFactory;
+import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequestFactory;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequest;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationResult;
-import ru.usernamedrew.edutaskllmworker.llm.LlmProviderType;
 
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -23,21 +21,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TaskGenerationWorkerService {
     private final LlmClientFactory clientFactory;
+    private final LlmGenerationRequestFactory requestFactory;
     private final LlmWorkerProperties properties;
 
     public TaskGenerationResponseEvent generate(TaskGenerationRequestedEvent event) {
         try {
-            LlmProviderType providerType = providerType(event.provider());
-            LlmClient client = clientFactory.getClient(providerType);
-            LlmGenerationRequest request = new LlmGenerationRequest(
-                event.requestId(),
-                event.prompt(),
-                event.topicIds() == null ? Set.of() : Set.copyOf(event.topicIds()),
-                event.difficulty(),
-                providerType,
-                model(event.model()),
-                temperature(event.temperature())
-            );
+            LlmGenerationRequest request = requestFactory.create(event);
+            LlmClient client = clientFactory.getClient(request.providerName());
             LlmGenerationResult result = client.generateTask(request);
             return completed(event, result);
         } catch (RuntimeException exception) {
@@ -65,32 +55,12 @@ public class TaskGenerationWorkerService {
             UUID.randomUUID(),
             event.requestId(),
             GenerationEventStatus.FAILED,
-            provider(event.provider()),
-            model(event.model()),
+            requestFactory.failureProvider(event.provider()),
+            requestFactory.failureModel(event.model()),
             null,
             errorMessage == null || errorMessage.isBlank() ? "Task generation failed" : errorMessage,
             OffsetDateTime.now(),
             properties.getSchemaVersion()
         );
-    }
-
-    private LlmProviderType providerType(String provider) {
-        return LlmProviderType.valueOf(provider(provider));
-    }
-
-    private String provider(String provider) {
-        return provider == null || provider.isBlank()
-            ? properties.getDefaultProvider()
-            : provider.trim();
-    }
-
-    private String model(String model) {
-        return model == null || model.isBlank()
-            ? properties.getDefaultModel()
-            : model.trim();
-    }
-
-    private BigDecimal temperature(BigDecimal temperature) {
-        return temperature == null ? properties.getDefaultTemperature() : temperature;
     }
 }

@@ -25,12 +25,12 @@ public record TaskGenerationCreateRequest(
     @Schema(description = "Желаемая сложность задачи", example = "EASY")
     TaskDifficulty difficulty,
 
-    @Schema(description = "LLM provider", example = "DEFAULT_QWEN")
+    @Schema(description = "Имя LLM provider из конфигурации worker-а", example = "openai")
     @Size(max = 50)
-    @Pattern(regexp = ".*\\S.*", message = "Must contain non-whitespace characters")
+    @Pattern(regexp = "[A-Za-z0-9._-]+", message = "Must contain only letters, digits, dot, underscore or hyphen")
     String provider,
 
-    @Schema(description = "Название модели", example = "qwen2.5-coder:7b")
+    @Schema(description = "Название модели", example = "openai/gpt-5.4-nano")
     @Size(max = 255)
     @Pattern(regexp = ".*\\S.*", message = "Must contain non-whitespace characters")
     String model,
