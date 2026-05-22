@@ -66,7 +66,7 @@ edutask:
       openai:
         type: OPENAI_COMPATIBLE
         base-url: ${OPENAI_BASE_URL:https://gatellm.ru/v1}
-        api-key: ${OPENAI_API_KEY:sk-fc2524a38c80419e9a0b2cb72a1b139ade9a93b5c2d72785739ce679bf21db87}
+        api-key: ${OPENAI_API_KEY:}
         model: ${OPENAI_MODEL:openai/gpt-5.4-nano}
         max-tokens: ${OPENAI_MAX_TOKENS:2048}
         request-timeout: ${OPENAI_REQUEST_TIMEOUT:120s}

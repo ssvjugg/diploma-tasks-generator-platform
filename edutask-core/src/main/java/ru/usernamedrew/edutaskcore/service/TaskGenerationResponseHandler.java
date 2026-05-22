@@ -26,7 +26,9 @@ public class TaskGenerationResponseHandler {
     @Transactional
     public void handle(TaskGenerationResponseEvent event) {
         GenerationRequest generationRequest = generationRequestRepository.findDetailedById(event.requestId())
-            .orElseThrow(() -> new IllegalArgumentException("GenerationRequest not found: " + event.requestId()));
+            .orElseThrow(() -> new InvalidKafkaPayloadException(
+                "GenerationRequest not found for response requestId: " + event.requestId()
+            ));
 
         if (generationRequest.getStatus().isTerminal()) {
             log.info(

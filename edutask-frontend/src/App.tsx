@@ -26,9 +26,11 @@ import {
 import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { createTaskGeneration, streamTaskGeneration } from './api/generations';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
 import { getTopic, getTopics, searchTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
+import type { GeneratedTaskDraft } from './types/generation';
 import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
 import type { Topic, TopicSummary } from './types/topic';
@@ -110,6 +112,15 @@ const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
   outputFormat: form.outputFormat.trim() || undefined,
   difficulty: form.difficulty,
   topicIds: form.topics.map((topic) => topic.id),
+});
+
+const applyGeneratedDraftToForm = (form: TaskFormState, draft: GeneratedTaskDraft): TaskFormState => ({
+  ...form,
+  title: draft.title ?? form.title,
+  statement: draft.statement ?? form.statement,
+  inputFormat: draft.inputFormat ?? '',
+  outputFormat: draft.outputFormat ?? '',
+  difficulty: draft.difficulty ?? form.difficulty,
 });
 
 const difficultyLabels: Record<TaskDifficulty, string> = {
@@ -369,6 +380,13 @@ function TaskFormModal({
   onSubmit,
 }: TaskFormModalProps) {
   const [form, setForm] = useState<TaskFormState>(initialValue);
+  const [isAiPromptOpen, setIsAiPromptOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generatedDraft, setGeneratedDraft] = useState<GeneratedTaskDraft | null>(null);
+  const [isGeneratedDraftDialogOpen, setIsGeneratedDraftDialogOpen] = useState(false);
+  const generationAbortControllerRef = useRef<AbortController | null>(null);
   const isCreateMode = mode === 'create';
   const title = isCreateMode ? 'Новая задача' : 'Редактирование задачи';
   const description = isCreateMode ? 'Заполните поля задачи для банка.' : 'Обновите поля задачи и сохраните изменения.';
@@ -381,6 +399,10 @@ function TaskFormModal({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (isGeneratedDraftDialogOpen) {
+          setIsGeneratedDraftDialogOpen(false);
+          return;
+        }
         onClose();
       }
     };
@@ -391,7 +413,11 @@ function TaskFormModal({
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [onClose]);
+  }, [isGeneratedDraftDialogOpen, onClose]);
+
+  useEffect(() => () => {
+    generationAbortControllerRef.current?.abort();
+  }, []);
 
   const updateForm = (field: Exclude<keyof TaskFormState, 'topics'>, value: string) => {
     setForm((currentForm) => ({ ...currentForm, [field]: value }));
@@ -402,7 +428,13 @@ function TaskFormModal({
   };
 
   const handleGenerateDraftClick = () => {
-    onNoteChange('AI-предложение позже заполнит эти поля, а преподаватель сможет принять или поправить значения.');
+    if (!isCreateMode) {
+      onNoteChange('AI-предложение для редактирования будет подключено позже.');
+      return;
+    }
+
+    setIsAiPromptOpen(true);
+    setGenerationError(null);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -410,37 +442,186 @@ function TaskFormModal({
     await onSubmit(form);
   };
 
-  return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) {
-        onClose();
+  const handleGenerateDraftSubmit = async () => {
+    const normalizedPrompt = aiPrompt.trim();
+
+    if (!normalizedPrompt) {
+      setGenerationError('Опишите, какую задачу нужно сгенерировать.');
+      return;
+    }
+
+    const controller = new AbortController();
+    generationAbortControllerRef.current?.abort();
+    generationAbortControllerRef.current = controller;
+    setIsGeneratingDraft(true);
+    setGenerationError(null);
+    setGeneratedDraft(null);
+    setIsGeneratedDraftDialogOpen(false);
+    onNoteChange(null);
+
+    try {
+      const generation = await createTaskGeneration(
+        {
+          prompt: normalizedPrompt,
+          difficulty: form.difficulty,
+          topicIds: form.topics.map((topic) => topic.id),
+        },
+        controller.signal,
+      );
+
+      if (generation.status === 'COMPLETED' && generation.result) {
+        setGeneratedDraft(generation.result);
+        onNoteChange('AI подготовил черновик. Проверьте его перед применением к форме.');
+        return;
       }
-    }}>
-      <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-form-title">
-        <header className="task-modal__header">
-          <div>
-            <h2 id="task-form-title">{title}</h2>
-            <p>{description}</p>
-          </div>
 
-          <div className="task-modal__actions">
-            <button
-              className="ai-action"
-              type="button"
-              onClick={handleGenerateDraftClick}
-              aria-label="Предложить заполнение через AI"
-              title="Предложить заполнение через AI"
-            >
-              <Sparkles size={16} aria-hidden="true" />
-              <span>AI</span>
-            </button>
-            <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть форму">
-              <X size={18} aria-hidden="true" />
-            </button>
-          </div>
-        </header>
+      if (generation.status === 'FAILED') {
+        throw new Error(generation.errorMessage ?? 'Генерация завершилась ошибкой');
+      }
 
-        <form className="task-form" onSubmit={handleSubmit}>
+      await streamTaskGeneration(generation.requestId, {
+        signal: controller.signal,
+        onMessage: (generationUpdate) => {
+          if (generationUpdate.status === 'COMPLETED' && generationUpdate.result) {
+            setGeneratedDraft(generationUpdate.result);
+            onNoteChange('AI подготовил черновик. Проверьте его перед применением к форме.');
+          }
+
+          if (generationUpdate.status === 'FAILED') {
+            setGenerationError(generationUpdate.errorMessage ?? 'Генерация завершилась ошибкой');
+          }
+        },
+      });
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
+      setGenerationError(requestError instanceof Error ? requestError.message : 'Не удалось сгенерировать задачу');
+    } finally {
+      if (generationAbortControllerRef.current === controller) {
+        generationAbortControllerRef.current = null;
+      }
+      if (!controller.signal.aborted) {
+        setIsGeneratingDraft(false);
+      }
+    }
+  };
+
+  const applyGeneratedDraft = () => {
+    if (!generatedDraft) {
+      return;
+    }
+
+    setForm((currentForm) => applyGeneratedDraftToForm(currentForm, generatedDraft));
+    setIsAiPromptOpen(false);
+    setGeneratedDraft(null);
+    setGenerationError(null);
+    setIsGeneratedDraftDialogOpen(false);
+    onNoteChange('Черновик применен к форме. Проверьте текст и сохраните задачу.');
+  };
+
+  return (
+    <>
+      <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}>
+        <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="task-form-title">
+          <header className="task-modal__header">
+            <div>
+              <h2 id="task-form-title">{title}</h2>
+              <p>{description}</p>
+            </div>
+
+            <div className="task-modal__actions">
+              <button
+                className="ai-action"
+                type="button"
+                onClick={handleGenerateDraftClick}
+                disabled={isGeneratingDraft}
+                aria-label="Предложить заполнение через AI"
+                title="Предложить заполнение через AI"
+              >
+                {isGeneratingDraft ? (
+                  <LoaderCircle className="state-view__loader" size={16} aria-hidden="true" />
+                ) : (
+                  <Sparkles size={16} aria-hidden="true" />
+                )}
+                <span>AI</span>
+              </button>
+              <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть форму">
+                <X size={18} aria-hidden="true" />
+              </button>
+            </div>
+          </header>
+
+          <form className="task-form" onSubmit={handleSubmit}>
+            {isAiPromptOpen && (
+              <section className="generation-panel" aria-label="AI генерация задачи">
+                <div className="generation-panel__form">
+                  <label className="form-field">
+                    <span>Промпт для AI</span>
+                    <textarea
+                      value={aiPrompt}
+                      onChange={(event) => setAiPrompt(event.target.value)}
+                      placeholder="Например: сгенерируй задачу на циклы для 7 класса с примерами ввода и вывода"
+                      rows={4}
+                      maxLength={4000}
+                      disabled={isGeneratingDraft}
+                    />
+                  </label>
+
+                  <footer className="generation-panel__actions">
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => setIsAiPromptOpen(false)}
+                      disabled={isGeneratingDraft}
+                    >
+                      Скрыть
+                    </button>
+                    <button
+                      className="text-button text-button--icon"
+                      type="button"
+                      onClick={handleGenerateDraftSubmit}
+                      disabled={isGeneratingDraft}
+                    >
+                      {isGeneratingDraft && <LoaderCircle className="state-view__loader" size={16} aria-hidden="true" />}
+                      <span>{isGeneratingDraft ? 'Генерация' : 'Отправить'}</span>
+                    </button>
+                  </footer>
+                </div>
+
+                {generationError && <p className="form-error">{generationError}</p>}
+
+                {generatedDraft && (
+                  <div className="generation-draft">
+                    <div>
+                      <strong>{generatedDraft.title}</strong>
+                      <span>{difficultyLabels[generatedDraft.difficulty]}</span>
+                    </div>
+                    <p>{generatedDraft.statement}</p>
+                    {generatedDraft.topics?.length > 0 && (
+                      <small>AI предложил темы: {generatedDraft.topics.map((topic) => topic.name).join(', ')}</small>
+                    )}
+                    <footer className="generation-draft__actions">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => setIsGeneratedDraftDialogOpen(true)}
+                      >
+                        Развернуть
+                      </button>
+                      <button className="text-button" type="button" onClick={applyGeneratedDraft}>
+                        Применить к форме
+                      </button>
+                    </footer>
+                  </div>
+                )}
+              </section>
+            )}
+
           <label className="form-field">
             <span>Название</span>
             <input
@@ -502,7 +683,115 @@ function TaskFormModal({
               {isSubmitting ? pendingLabel : submitLabel}
             </button>
           </footer>
-        </form>
+          </form>
+        </section>
+      </div>
+
+      {generatedDraft && isGeneratedDraftDialogOpen && (
+        <GeneratedDraftDialog
+          draft={generatedDraft}
+          onApply={applyGeneratedDraft}
+          onClose={() => setIsGeneratedDraftDialogOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+type GeneratedDraftDialogProps = {
+  draft: GeneratedTaskDraft;
+  onApply: () => void;
+  onClose: () => void;
+};
+
+function GeneratedDraftDialog({ draft, onApply, onClose }: GeneratedDraftDialogProps) {
+  return (
+    <div className="generated-draft-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        onClose();
+      }
+    }}>
+      <section
+        className="generated-draft-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="generated-draft-title"
+      >
+        <header className="generated-draft-dialog__header">
+          <div>
+            <span className="generated-draft-dialog__eyebrow">AI черновик</span>
+            <h3 id="generated-draft-title">{draft.title}</h3>
+            <p>{difficultyLabels[draft.difficulty]}</p>
+          </div>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть просмотр">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="generated-draft-dialog__body">
+          <section className="generated-draft-section">
+            <h4>Условие</h4>
+            <MarkdownBlock source={draft.statement} />
+          </section>
+
+          <div className="generated-draft-dialog__grid">
+            <section className="generated-draft-section">
+              <h4>Формат входных данных</h4>
+              {draft.inputFormat ? <MarkdownBlock source={draft.inputFormat} /> : <p>Не указан</p>}
+            </section>
+
+            <section className="generated-draft-section">
+              <h4>Формат выходных данных</h4>
+              {draft.outputFormat ? <MarkdownBlock source={draft.outputFormat} /> : <p>Не указан</p>}
+            </section>
+          </div>
+
+          {draft.topics?.length > 0 && (
+            <section className="generated-draft-section">
+              <h4>Предложенные темы</h4>
+              <div className="generated-draft-topics">
+                {draft.topics.map((topic) => (
+                  <span key={topic.name}>{topic.name}</span>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {draft.testCases?.length > 0 && (
+            <section className="generated-draft-section">
+              <h4>Тест-кейсы</h4>
+              <div className="generated-test-cases">
+                {draft.testCases.map((testCase, index) => (
+                  <article className="generated-test-case" key={`${testCase.inputData}-${index}`}>
+                    <header>
+                      <strong>Тест {index + 1}</strong>
+                      <span>{testCase.hidden ? 'Скрытый' : 'Открытый'} · баллы: {testCase.points}</span>
+                    </header>
+                    <div>
+                      <label>
+                        <span>Ввод</span>
+                        <pre>{testCase.inputData || 'Пустой ввод'}</pre>
+                      </label>
+                      <label>
+                        <span>Ожидаемый вывод</span>
+                        <pre>{testCase.expectedOutput || 'Пустой вывод'}</pre>
+                      </label>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <footer className="generated-draft-dialog__footer">
+          <button className="secondary-button" type="button" onClick={onClose}>
+            Закрыть
+          </button>
+          <button className="text-button" type="button" onClick={onApply}>
+            Применить к форме
+          </button>
+        </footer>
       </section>
     </div>
   );

@@ -90,7 +90,6 @@ public class OllamaQwenLlmClient implements LlmClient {
 
         OllamaChatModel chatModel = OllamaChatModel.builder()
             .ollamaApi(ollamaApi)
-            .defaultOptions(defaultOptions(provider))
             .build();
 
         return ChatClient.create(chatModel);
@@ -106,13 +105,6 @@ public class OllamaQwenLlmClient implements LlmClient {
 
         return RestClient.builder()
             .requestFactory(requestFactory);
-    }
-
-    private OllamaChatOptions defaultOptions(Provider provider) {
-        OllamaChatOptions.Builder options = OllamaChatOptions.builder();
-        options.model(provider.getModel());
-        options.maxTokens(provider.getMaxTokens());
-        return options.build();
     }
 
     private OllamaChatOptions.Builder ollamaOptions(String model, BigDecimal requestedTemperature) {
