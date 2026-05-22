@@ -26,12 +26,14 @@ import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createTaskGeneration, streamTaskGeneration } from './api/generations';
+import { createTestCase, deleteTestCase, getTaskTestCases, updateTestCase } from './api/testCases';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
 import { getTopic, getTopics, searchTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
-import type { GeneratedTaskDraft } from './types/generation';
+import type { GeneratedTaskDraft, GeneratedTestCaseDraft } from './types/generation';
 import type { PageResponse } from './types/page';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
+import type { TestCaseCreateRequest, TestCaseResponse } from './types/testCase';
 import type { Topic, TopicSummary } from './types/topic';
 
 const DEFAULT_TASKS_PAGE_SIZE = 20;
@@ -75,6 +77,7 @@ type TaskFormState = {
   outputFormat: string;
   difficulty: TaskDifficulty;
   topics: TopicSummary[];
+  testCases: TestCaseFormState[];
 };
 
 const emptyTaskForm: TaskFormState = {
@@ -84,6 +87,21 @@ const emptyTaskForm: TaskFormState = {
   outputFormat: '',
   difficulty: 'EASY',
   topics: [],
+  testCases: [],
+};
+
+type TestCaseFormState = {
+  inputData: string;
+  expectedOutput: string;
+  hidden: boolean;
+  points: string;
+};
+
+const emptyTestCaseForm: TestCaseFormState = {
+  inputData: '',
+  expectedOutput: '',
+  hidden: false,
+  points: '0',
 };
 
 const taskToFormState = (task: TaskResponse): TaskFormState => ({
@@ -93,6 +111,21 @@ const taskToFormState = (task: TaskResponse): TaskFormState => ({
   outputFormat: task.outputFormat ?? '',
   difficulty: task.difficulty,
   topics: task.topics,
+  testCases: [],
+});
+
+const testCaseToFormState = (testCase: TestCaseResponse): TestCaseFormState => ({
+  inputData: testCase.inputData,
+  expectedOutput: testCase.expectedOutput,
+  hidden: testCase.hidden,
+  points: String(testCase.points),
+});
+
+const generatedTestCaseToFormState = (testCase: GeneratedTestCaseDraft): TestCaseFormState => ({
+  inputData: testCase.inputData ?? '',
+  expectedOutput: testCase.expectedOutput ?? '',
+  hidden: Boolean(testCase.hidden),
+  points: String(Math.max(0, Number.isFinite(testCase.points) ? testCase.points : 0)),
 });
 
 const buildCreateTaskPayload = (form: TaskFormState): TaskCreateRequest => ({
@@ -102,6 +135,7 @@ const buildCreateTaskPayload = (form: TaskFormState): TaskCreateRequest => ({
   outputFormat: form.outputFormat.trim() || undefined,
   difficulty: form.difficulty,
   topicIds: form.topics.map((topic) => topic.id),
+  testCases: form.testCases.length > 0 ? form.testCases.map(buildTestCasePayload) : undefined,
 });
 
 const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
@@ -113,6 +147,13 @@ const buildUpdateTaskPayload = (form: TaskFormState): TaskUpdateRequest => ({
   topicIds: form.topics.map((topic) => topic.id),
 });
 
+const buildTestCasePayload = (form: TestCaseFormState): TestCaseCreateRequest => ({
+  inputData: form.inputData,
+  expectedOutput: form.expectedOutput,
+  hidden: form.hidden,
+  points: Number(form.points),
+});
+
 const applyGeneratedDraftToForm = (form: TaskFormState, draft: GeneratedTaskDraft): TaskFormState => ({
   ...form,
   title: draft.title ?? form.title,
@@ -120,6 +161,7 @@ const applyGeneratedDraftToForm = (form: TaskFormState, draft: GeneratedTaskDraf
   inputFormat: draft.inputFormat ?? form.inputFormat,
   outputFormat: draft.outputFormat ?? form.outputFormat,
   difficulty: draft.difficulty ?? form.difficulty,
+  testCases: draft.testCases?.map(generatedTestCaseToFormState) ?? form.testCases,
 });
 
 const difficultyLabels: Record<TaskDifficulty, string> = {
@@ -385,6 +427,9 @@ function TaskFormModal({
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedDraft, setGeneratedDraft] = useState<GeneratedTaskDraft | null>(null);
   const [isGeneratedDraftDialogOpen, setIsGeneratedDraftDialogOpen] = useState(false);
+  const [isTestCaseFormOpen, setIsTestCaseFormOpen] = useState(false);
+  const [testCaseFormMode, setTestCaseFormMode] = useState<TestCaseFormMode>('create');
+  const [editingTestCaseIndex, setEditingTestCaseIndex] = useState<number | null>(null);
   const generationAbortControllerRef = useRef<AbortController | null>(null);
   const isCreateMode = mode === 'create';
   const title = isCreateMode ? 'Новая задача' : 'Редактирование задачи';
@@ -402,6 +447,11 @@ function TaskFormModal({
           setIsGeneratedDraftDialogOpen(false);
           return;
         }
+        if (isTestCaseFormOpen) {
+          setIsTestCaseFormOpen(false);
+          setEditingTestCaseIndex(null);
+          return;
+        }
         onClose();
       }
     };
@@ -412,18 +462,61 @@ function TaskFormModal({
       document.body.style.overflow = previousBodyOverflow;
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isGeneratedDraftDialogOpen, onClose]);
+  }, [isGeneratedDraftDialogOpen, isTestCaseFormOpen, onClose]);
 
   useEffect(() => () => {
     generationAbortControllerRef.current?.abort();
   }, []);
 
-  const updateForm = (field: Exclude<keyof TaskFormState, 'topics'>, value: string) => {
+  const updateForm = (field: Exclude<keyof TaskFormState, 'topics' | 'testCases'>, value: string) => {
     setForm((currentForm) => ({ ...currentForm, [field]: value }));
   };
 
   const updateTopics = (topics: TopicSummary[]) => {
     setForm((currentForm) => ({ ...currentForm, topics }));
+  };
+
+  const openCreateTestCaseForm = () => {
+    setTestCaseFormMode('create');
+    setEditingTestCaseIndex(null);
+    setIsTestCaseFormOpen(true);
+  };
+
+  const openEditTestCaseForm = (index: number) => {
+    setTestCaseFormMode('edit');
+    setEditingTestCaseIndex(index);
+    setIsTestCaseFormOpen(true);
+  };
+
+  const closeTestCaseForm = useCallback(() => {
+    setIsTestCaseFormOpen(false);
+    setEditingTestCaseIndex(null);
+  }, []);
+
+  const handleTestCaseSubmit = async (testCaseForm: TestCaseFormState) => {
+    setForm((currentForm) => {
+      if (testCaseFormMode === 'edit' && editingTestCaseIndex !== null) {
+        return {
+          ...currentForm,
+          testCases: currentForm.testCases.map((testCase, index) => (
+            index === editingTestCaseIndex ? testCaseForm : testCase
+          )),
+        };
+      }
+
+      return {
+        ...currentForm,
+        testCases: [...currentForm.testCases, testCaseForm],
+      };
+    });
+    closeTestCaseForm();
+  };
+
+  const removeTestCase = (indexToRemove: number) => {
+    setForm((currentForm) => ({
+      ...currentForm,
+      testCases: currentForm.testCases.filter((_, index) => index !== indexToRemove),
+    }));
   };
 
   const handleGenerateDraftClick = () => {
@@ -506,12 +599,18 @@ function TaskFormModal({
       return;
     }
 
+    const generatedTestCasesCount = generatedDraft.testCases?.length ?? 0;
+
     setForm((currentForm) => applyGeneratedDraftToForm(currentForm, generatedDraft));
     setIsAiPromptOpen(false);
     setGeneratedDraft(null);
     setGenerationError(null);
     setIsGeneratedDraftDialogOpen(false);
-    onNoteChange('Черновик применен к форме. Проверьте текст и сохраните задачу.');
+    onNoteChange(
+      generatedTestCasesCount > 0
+        ? `Черновик применен к форме. Тест-кейсов: ${generatedTestCasesCount}. Проверьте текст и сохраните задачу.`
+        : 'Черновик применен к форме. Проверьте текст и сохраните задачу.',
+    );
   };
 
   return (
@@ -668,6 +767,82 @@ function TaskFormModal({
             <TopicMultiSelect selectedTopics={form.topics} onChange={updateTopics} />
           </div>
 
+          {isCreateMode && (
+            <section className="task-form-test-cases" aria-label="Тест-кейсы задачи">
+              <header className="task-form-test-cases__header">
+                <div>
+                  <h3>Тест-кейсы</h3>
+                  <span>{form.testCases.length} шт.</span>
+                </div>
+
+                <button
+                  className="secondary-button secondary-button--icon"
+                  type="button"
+                  onClick={openCreateTestCaseForm}
+                >
+                  <Plus size={16} aria-hidden="true" />
+                  <span>Добавить</span>
+                </button>
+              </header>
+
+              {form.testCases.length === 0 && (
+                <div className="task-form-test-cases__empty">
+                  <span>Тест-кейсы пока не добавлены</span>
+                </div>
+              )}
+
+              {form.testCases.length > 0 && (
+                <div className="task-form-test-cases__list">
+                  {form.testCases.map((testCase, index) => (
+                    <article className="task-form-test-case" key={`${testCase.inputData}-${index}`}>
+                      <header className="task-form-test-case__header">
+                        <div className="task-form-test-case__title">
+                          <strong>Тест {index + 1}</strong>
+                          <span className={`test-case-visibility ${testCase.hidden ? 'test-case-visibility--hidden' : ''}`}>
+                            {testCase.hidden ? 'Скрытый' : 'Открытый'}
+                          </span>
+                          <span className="test-case-points">баллы: {testCase.points}</span>
+                        </div>
+
+                        <div className="task-form-test-case__actions">
+                          <button
+                            className="icon-button test-case-action"
+                            type="button"
+                            onClick={() => openEditTestCaseForm(index)}
+                            aria-label={`Изменить тест ${index + 1}`}
+                            title="Изменить"
+                          >
+                            <Pencil size={15} aria-hidden="true" />
+                          </button>
+                          <button
+                            className="icon-button test-case-action test-case-action--danger"
+                            type="button"
+                            onClick={() => removeTestCase(index)}
+                            aria-label={`Удалить тест ${index + 1}`}
+                            title="Удалить"
+                          >
+                            <Trash2 size={15} aria-hidden="true" />
+                          </button>
+                        </div>
+                      </header>
+
+                      <div className="task-form-test-case__body">
+                        <label>
+                          <span>Ввод</span>
+                          <pre>{testCase.inputData || 'Пустой ввод'}</pre>
+                        </label>
+                        <label>
+                          <span>Ожидаемый вывод</span>
+                          <pre>{testCase.expectedOutput || 'Пустой вывод'}</pre>
+                        </label>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           {note && <p className="form-note">{note}</p>}
           {error && <p className="form-error">{error}</p>}
 
@@ -688,6 +863,17 @@ function TaskFormModal({
           draft={generatedDraft}
           onApply={applyGeneratedDraft}
           onClose={() => setIsGeneratedDraftDialogOpen(false)}
+        />
+      )}
+
+      {isTestCaseFormOpen && (
+        <TestCaseFormModal
+          mode={testCaseFormMode}
+          initialValue={editingTestCaseIndex === null ? emptyTestCaseForm : form.testCases[editingTestCaseIndex] ?? emptyTestCaseForm}
+          isSubmitting={false}
+          error={null}
+          onClose={closeTestCaseForm}
+          onSubmit={handleTestCaseSubmit}
         />
       )}
     </>
@@ -788,6 +974,147 @@ function GeneratedDraftDialog({ draft, onApply, onClose }: GeneratedDraftDialogP
             Применить к форме
           </button>
         </footer>
+      </section>
+    </div>
+  );
+}
+
+type TestCaseFormMode = 'create' | 'edit';
+
+type TestCaseFormModalProps = {
+  mode: TestCaseFormMode;
+  initialValue: TestCaseFormState;
+  isSubmitting: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (form: TestCaseFormState) => Promise<void>;
+};
+
+function TestCaseFormModal({
+  mode,
+  initialValue,
+  isSubmitting,
+  error,
+  onClose,
+  onSubmit,
+}: TestCaseFormModalProps) {
+  const [form, setForm] = useState<TestCaseFormState>(initialValue);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const isCreateMode = mode === 'create';
+  const title = isCreateMode ? 'Новый тест-кейс' : 'Редактирование тест-кейса';
+  const description = isCreateMode ? 'Данные для проверки решения.' : 'Обновите данные проверки.';
+  const submitLabel = isCreateMode ? 'Добавить' : 'Сохранить';
+  const pendingLabel = isCreateMode ? 'Добавление' : 'Сохранение';
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
+
+  const updateForm = <Field extends keyof TestCaseFormState>(field: Field, value: TestCaseFormState[Field]) => {
+    setForm((currentForm) => ({ ...currentForm, [field]: value }));
+    setLocalError(null);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const points = Number(form.points);
+
+    if (!Number.isInteger(points) || points < 0) {
+      setLocalError('Баллы должны быть целым неотрицательным числом.');
+      return;
+    }
+
+    await onSubmit({ ...form, points: String(points) });
+  };
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        onClose();
+      }
+    }}>
+      <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="test-case-form-title">
+        <header className="task-modal__header">
+          <div>
+            <h2 id="test-case-form-title">{title}</h2>
+            <p>{description}</p>
+          </div>
+
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть форму">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <form className="task-form" onSubmit={handleSubmit}>
+          <label className="form-field">
+            <span>Входные данные</span>
+            <textarea
+              value={form.inputData}
+              onChange={(event) => updateForm('inputData', event.target.value)}
+              rows={8}
+              spellCheck={false}
+            />
+          </label>
+
+          <label className="form-field">
+            <span>Ожидаемый вывод</span>
+            <textarea
+              value={form.expectedOutput}
+              onChange={(event) => updateForm('expectedOutput', event.target.value)}
+              rows={8}
+              spellCheck={false}
+            />
+          </label>
+
+          <div className="form-grid form-grid--test-case-meta">
+            <label className="form-field">
+              <span>Баллы</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={form.points}
+                onChange={(event) => updateForm('points', event.target.value)}
+                required
+              />
+            </label>
+
+            <label className="toggle-field test-case-hidden-toggle">
+              <input
+                type="checkbox"
+                checked={form.hidden}
+                onChange={(event) => updateForm('hidden', event.target.checked)}
+              />
+              <span>Скрытый тест</span>
+            </label>
+          </div>
+
+          {localError && <p className="form-error">{localError}</p>}
+          {error && <p className="form-error">{error}</p>}
+
+          <footer className="task-form__footer">
+            <button className="secondary-button" type="button" onClick={onClose}>
+              Отмена
+            </button>
+            <button className="text-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? pendingLabel : submitLabel}
+            </button>
+          </footer>
+        </form>
       </section>
     </div>
   );
@@ -1273,8 +1600,11 @@ function TaskDetailView() {
   const navigate = useNavigate();
   const { taskId } = useParams<{ taskId: string }>();
   const [task, setTask] = useState<TaskResponse | null>(null);
+  const [testCases, setTestCases] = useState<TestCaseResponse[]>([]);
   const [isTaskLoading, setIsTaskLoading] = useState(true);
+  const [isTestCasesLoading, setIsTestCasesLoading] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [testCasesError, setTestCasesError] = useState<string | null>(null);
   const [solutionCode, setSolutionCode] = useState('');
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
@@ -1282,6 +1612,12 @@ function TaskDetailView() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editNote, setEditNote] = useState<string | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [testCaseFormMode, setTestCaseFormMode] = useState<TestCaseFormMode>('create');
+  const [editingTestCase, setEditingTestCase] = useState<TestCaseResponse | null>(null);
+  const [isTestCaseFormOpen, setIsTestCaseFormOpen] = useState(false);
+  const [isSavingTestCase, setIsSavingTestCase] = useState(false);
+  const [testCaseFormError, setTestCaseFormError] = useState<string | null>(null);
+  const [deletingTestCaseId, setDeletingTestCaseId] = useState<string | null>(null);
   const taskMenuRef = useRef<HTMLDivElement | null>(null);
 
   const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
@@ -1317,6 +1653,35 @@ function TaskDetailView() {
     }
   }, [taskId]);
 
+  const loadTestCases = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
+    if (!taskId) {
+      return;
+    }
+
+    if (shouldApplyResult()) {
+      setIsTestCasesLoading(true);
+      setTestCasesError(null);
+    }
+
+    try {
+      const data = await getTaskTestCases(taskId, { signal });
+      if (shouldApplyResult()) {
+        setTestCases(data);
+      }
+    } catch (requestError) {
+      if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        return;
+      }
+      if (shouldApplyResult()) {
+        setTestCasesError(requestError instanceof Error ? requestError.message : 'Не удалось получить тест-кейсы');
+      }
+    } finally {
+      if (!signal?.aborted && shouldApplyResult()) {
+        setIsTestCasesLoading(false);
+      }
+    }
+  }, [taskId]);
+
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
@@ -1327,6 +1692,17 @@ function TaskDetailView() {
       controller.abort();
     };
   }, [loadTask]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let isActive = true;
+    void loadTestCases(controller.signal, () => isActive);
+
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [loadTestCases]);
 
   useEffect(() => {
     if (!isTaskMenuOpen) {
@@ -1361,6 +1737,26 @@ function TaskDetailView() {
     setIsEditFormOpen(false);
     setEditError(null);
     setEditNote(null);
+  }, []);
+
+  const openCreateTestCaseForm = () => {
+    setTestCaseFormMode('create');
+    setEditingTestCase(null);
+    setTestCaseFormError(null);
+    setIsTestCaseFormOpen(true);
+  };
+
+  const openEditTestCaseForm = (testCase: TestCaseResponse) => {
+    setTestCaseFormMode('edit');
+    setEditingTestCase(testCase);
+    setTestCaseFormError(null);
+    setIsTestCaseFormOpen(true);
+  };
+
+  const closeTestCaseForm = useCallback(() => {
+    setIsTestCaseFormOpen(false);
+    setEditingTestCase(null);
+    setTestCaseFormError(null);
   }, []);
 
   const handleUpdateTask = async (form: TaskFormState) => {
@@ -1406,6 +1802,61 @@ function TaskDetailView() {
       setIsTaskMenuOpen(false);
     } finally {
       setIsDeletingTask(false);
+    }
+  };
+
+  const handleSaveTestCase = async (form: TestCaseFormState) => {
+    if (!task) {
+      return;
+    }
+
+    setIsSavingTestCase(true);
+    setTestCaseFormError(null);
+
+    try {
+      const payload = buildTestCasePayload(form);
+
+      if (testCaseFormMode === 'edit' && editingTestCase) {
+        const updatedTestCase = await updateTestCase(task.id, editingTestCase.id, payload);
+        setTestCases((currentTestCases) => currentTestCases.map((testCase) => (
+          testCase.id === updatedTestCase.id ? updatedTestCase : testCase
+        )));
+      } else {
+        const createdTestCase = await createTestCase(task.id, payload);
+        setTestCases((currentTestCases) => [...currentTestCases, createdTestCase]);
+      }
+
+      closeTestCaseForm();
+    } catch (requestError) {
+      setTestCaseFormError(requestError instanceof Error ? requestError.message : 'Не удалось сохранить тест-кейс');
+    } finally {
+      setIsSavingTestCase(false);
+    }
+  };
+
+  const handleDeleteTestCase = async (testCase: TestCaseResponse) => {
+    if (!task || deletingTestCaseId) {
+      return;
+    }
+
+    const shouldDelete = window.confirm('Удалить тест-кейс? Это действие нельзя отменить.');
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingTestCaseId(testCase.id);
+    setTestCasesError(null);
+
+    try {
+      await deleteTestCase(task.id, testCase.id);
+      setTestCases((currentTestCases) => currentTestCases.filter((currentTestCase) => (
+        currentTestCase.id !== testCase.id
+      )));
+    } catch (requestError) {
+      setTestCasesError(requestError instanceof Error ? requestError.message : 'Не удалось удалить тест-кейс');
+    } finally {
+      setDeletingTestCaseId(null);
     }
   };
 
@@ -1522,6 +1973,106 @@ function TaskDetailView() {
                 <MarkdownBlock source={task.outputFormat} />
               </section>
             )}
+
+            <section className="problem-section test-cases-section" aria-labelledby="test-cases-title">
+              <header className="test-cases-section__header">
+                <div>
+                  <h2 id="test-cases-title">Тест-кейсы</h2>
+                  <span>{testCases.length} шт.</span>
+                </div>
+
+                {canManageTask && (
+                  <button
+                    className="secondary-button secondary-button--icon"
+                    type="button"
+                    onClick={openCreateTestCaseForm}
+                    title="Добавить тест-кейс"
+                  >
+                    <Plus size={16} aria-hidden="true" />
+                    <span>Добавить</span>
+                  </button>
+                )}
+              </header>
+
+              {isTestCasesLoading && (
+                <div className="test-cases-state">
+                  <LoaderCircle className="state-view__loader" size={18} aria-hidden="true" />
+                  <span>Загрузка тест-кейсов</span>
+                </div>
+              )}
+
+              {!isTestCasesLoading && testCasesError && (
+                <div className="test-cases-state test-cases-state--error">
+                  <span>{testCasesError}</span>
+                  <button className="text-button" type="button" onClick={() => loadTestCases()}>
+                    Повторить
+                  </button>
+                </div>
+              )}
+
+              {!isTestCasesLoading && !testCasesError && testCases.length === 0 && (
+                <div className="test-cases-state">
+                  <span>Тест-кейсы пока не добавлены</span>
+                </div>
+              )}
+
+              {!isTestCasesLoading && !testCasesError && testCases.length > 0 && (
+                <div className="test-cases-list">
+                  {testCases.map((testCase, index) => (
+                    <article className="test-case-item" key={testCase.id}>
+                      <header className="test-case-item__header">
+                        <div className="test-case-item__title">
+                          <strong>Тест {index + 1}</strong>
+                          <span className={`test-case-visibility ${testCase.hidden ? 'test-case-visibility--hidden' : ''}`}>
+                            {testCase.hidden ? 'Скрытый' : 'Открытый'}
+                          </span>
+                          <span className="test-case-points">баллы: {testCase.points}</span>
+                        </div>
+
+                        {canManageTask && (
+                          <div className="test-case-item__actions">
+                            <button
+                              className="icon-button test-case-action"
+                              type="button"
+                              onClick={() => openEditTestCaseForm(testCase)}
+                              aria-label={`Изменить тест ${index + 1}`}
+                              title="Изменить"
+                            >
+                              <Pencil size={15} aria-hidden="true" />
+                            </button>
+                            <button
+                              className="icon-button test-case-action test-case-action--danger"
+                              type="button"
+                              onClick={() => handleDeleteTestCase(testCase)}
+                              disabled={deletingTestCaseId === testCase.id}
+                              aria-label={`Удалить тест ${index + 1}`}
+                              title="Удалить"
+                            >
+                              {deletingTestCaseId === testCase.id ? (
+                                <LoaderCircle className="state-view__loader" size={15} aria-hidden="true" />
+                              ) : (
+                                <Trash2 size={15} aria-hidden="true" />
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </header>
+
+                      <div className="test-case-item__body">
+                        <label>
+                          <span>Ввод</span>
+                          <pre>{testCase.inputData || 'Пустой ввод'}</pre>
+                        </label>
+                        <label>
+                          <span>Ожидаемый вывод</span>
+                          <pre>{testCase.expectedOutput || 'Пустой вывод'}</pre>
+                        </label>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </article>
 
@@ -1571,6 +2122,17 @@ function TaskDetailView() {
           onClose={closeEditForm}
           onNoteChange={setEditNote}
           onSubmit={handleUpdateTask}
+        />
+      )}
+
+      {isTestCaseFormOpen && (
+        <TestCaseFormModal
+          mode={testCaseFormMode}
+          initialValue={editingTestCase ? testCaseToFormState(editingTestCase) : emptyTestCaseForm}
+          isSubmitting={isSavingTestCase}
+          error={testCaseFormError}
+          onClose={closeTestCaseForm}
+          onSubmit={handleSaveTestCase}
         />
       )}
     </section>

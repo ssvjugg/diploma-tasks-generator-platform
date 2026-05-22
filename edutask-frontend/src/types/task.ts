@@ -1,3 +1,5 @@
+import type { TestCaseCreateRequest } from './testCase';
+
 export type TaskDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
 export type TaskSummary = {
@@ -31,6 +33,7 @@ export type TaskCreateRequest = {
   outputFormat?: string;
   difficulty: TaskDifficulty;
   topicIds: string[];
+  testCases?: TestCaseCreateRequest[];
 };
 
 export type TaskUpdateRequest = Partial<TaskCreateRequest>;
