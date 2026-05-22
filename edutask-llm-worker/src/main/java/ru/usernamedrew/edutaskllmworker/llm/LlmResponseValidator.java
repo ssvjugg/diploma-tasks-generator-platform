@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTestCaseDraft;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTopicDraft;
+import ru.usernamedrew.edutaskllmworker.exception.LlmResponseValidationException;
 
 @Component
 public class LlmResponseValidator {

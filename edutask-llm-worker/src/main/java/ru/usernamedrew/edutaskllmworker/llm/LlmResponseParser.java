@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
+import ru.usernamedrew.edutaskllmworker.exception.LlmResponseValidationException;
 
 @Component
 public class LlmResponseParser {

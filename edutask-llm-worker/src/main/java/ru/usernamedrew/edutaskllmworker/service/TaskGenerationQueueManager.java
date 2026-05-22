@@ -8,7 +8,7 @@ import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationRequestedEve
 import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationResponseEvent;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
 import ru.usernamedrew.edutaskllmworker.kafka.TaskGenerationResponseProducer;
-import ru.usernamedrew.edutaskllmworker.llm.LlmClientException;
+import ru.usernamedrew.edutaskllmworker.exception.LlmClientException;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;

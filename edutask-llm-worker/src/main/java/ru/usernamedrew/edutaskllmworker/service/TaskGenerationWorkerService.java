@@ -7,13 +7,15 @@ import ru.usernamedrew.edutaskcommon.event.generation.GenerationEventStatus;
 import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationRequestedEvent;
 import ru.usernamedrew.edutaskcommon.event.generation.TaskGenerationResponseEvent;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
+import ru.usernamedrew.edutaskllmworker.exception.InvalidLlmGenerationRequestException;
+import ru.usernamedrew.edutaskllmworker.exception.LlmClientException;
+import ru.usernamedrew.edutaskllmworker.exception.LlmResponseValidationException;
+import ru.usernamedrew.edutaskllmworker.exception.UnsupportedLlmProviderException;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClient;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClientFactory;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequestFactory;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequest;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationResult;
-import ru.usernamedrew.edutaskllmworker.llm.LlmClientException;
-import ru.usernamedrew.edutaskllmworker.llm.LlmResponseValidationException;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -32,9 +34,16 @@ public class TaskGenerationWorkerService {
             LlmClient client = clientFactory.getClient(request.providerName());
             LlmGenerationResult result = client.generateTask(request);
             return completed(event, result);
+        } catch (UnsupportedLlmProviderException exception) {
+            return failed(event, "Unsupported LLM provider", exception);
+        } catch (InvalidLlmGenerationRequestException exception) {
+            return failed(event, "Unsupported LLM generation request", exception);
+        } catch (LlmResponseValidationException exception) {
+            return failed(event, "LLM response has invalid format", exception);
+        } catch (LlmClientException exception) {
+            return failed(event, "LLM provider is temporarily unavailable", exception);
         } catch (RuntimeException exception) {
-            log.warn("Task generation failed, requestId={}", event.requestId(), exception);
-            return failedResponse(event, safeErrorMessage(exception));
+            return failed(event, "Task generation failed", exception);
         }
     }
 
@@ -66,16 +75,12 @@ public class TaskGenerationWorkerService {
         );
     }
 
-    private String safeErrorMessage(RuntimeException exception) {
-        if (exception instanceof LlmResponseValidationException) {
-            return "LLM response has invalid format";
-        }
-        if (exception instanceof IllegalArgumentException) {
-            return "Unsupported LLM generation request";
-        }
-        if (exception instanceof LlmClientException) {
-            return "LLM provider is temporarily unavailable";
-        }
-        return "Task generation failed";
+    private TaskGenerationResponseEvent failed(
+        TaskGenerationRequestedEvent event,
+        String errorMessage,
+        RuntimeException exception
+    ) {
+        log.warn("Task generation failed, requestId={}", event.requestId(), exception);
+        return failedResponse(event, errorMessage);
     }
 }

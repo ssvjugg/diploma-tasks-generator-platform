@@ -1,4 +1,4 @@
-package ru.usernamedrew.edutaskllmworker.llm;
+package ru.usernamedrew.edutaskllmworker.exception;
 
 public class LlmResponseValidationException extends RuntimeException {
     public LlmResponseValidationException(String message) {

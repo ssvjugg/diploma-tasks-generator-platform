@@ -3,6 +3,7 @@ package ru.usernamedrew.edutaskllmworker.llm;
 import org.springframework.stereotype.Component;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties.Provider;
+import ru.usernamedrew.edutaskllmworker.exception.UnsupportedLlmProviderException;
 import ru.usernamedrew.edutaskllmworker.llm.ollama.OllamaQwenLlmClient;
 import ru.usernamedrew.edutaskllmworker.llm.openai.OpenAiCompatibleLlmClient;
 
@@ -34,7 +35,7 @@ public class LlmClientFactory {
         }
         LlmClientRegistration registration = registrations.get(normalize(providerName));
         if (registration == null) {
-            throw new IllegalArgumentException("Unsupported LLM provider: " + providerName);
+            throw new UnsupportedLlmProviderException("Unsupported LLM provider: " + providerName);
         }
         return registration;
     }

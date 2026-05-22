@@ -6,11 +6,11 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import ru.usernamedrew.edutaskcommon.event.generation.GeneratedTaskDraft;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties;
 import ru.usernamedrew.edutaskllmworker.config.LlmWorkerProperties.Provider;
+import ru.usernamedrew.edutaskllmworker.exception.LlmClientException;
+import ru.usernamedrew.edutaskllmworker.exception.LlmResponseValidationException;
 import ru.usernamedrew.edutaskllmworker.llm.LlmClient;
-import ru.usernamedrew.edutaskllmworker.llm.LlmClientException;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationRequest;
 import ru.usernamedrew.edutaskllmworker.llm.LlmGenerationResult;
-import ru.usernamedrew.edutaskllmworker.llm.LlmResponseValidationException;
 import ru.usernamedrew.edutaskllmworker.llm.LlmResponseValidator;
 import ru.usernamedrew.edutaskllmworker.llm.PromptBuilder;
 

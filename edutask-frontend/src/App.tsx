@@ -9,7 +9,6 @@ import {
   Filter,
   LogOut,
   LoaderCircle,
-  MessageSquarePlus,
   MoreVertical,
   Pencil,
   Plus,
@@ -428,11 +427,6 @@ function TaskFormModal({
   };
 
   const handleGenerateDraftClick = () => {
-    if (!isCreateMode) {
-      onNoteChange('AI-предложение для редактирования будет подключено позже.');
-      return;
-    }
-
     setIsAiPromptOpen(true);
     setGenerationError(null);
   };
@@ -535,21 +529,23 @@ function TaskFormModal({
             </div>
 
             <div className="task-modal__actions">
-              <button
-                className="ai-action"
-                type="button"
-                onClick={handleGenerateDraftClick}
-                disabled={isGeneratingDraft}
-                aria-label="Предложить заполнение через AI"
-                title="Предложить заполнение через AI"
-              >
-                {isGeneratingDraft ? (
-                  <LoaderCircle className="state-view__loader" size={16} aria-hidden="true" />
-                ) : (
-                  <Sparkles size={16} aria-hidden="true" />
-                )}
-                <span>AI</span>
-              </button>
+              {isCreateMode && (
+                <button
+                  className="ai-action"
+                  type="button"
+                  onClick={handleGenerateDraftClick}
+                  disabled={isGeneratingDraft}
+                  aria-label="Предложить заполнение через AI"
+                  title="Предложить заполнение через AI"
+                >
+                  {isGeneratingDraft ? (
+                    <LoaderCircle className="state-view__loader" size={16} aria-hidden="true" />
+                  ) : (
+                    <Sparkles size={16} aria-hidden="true" />
+                  )}
+                  <span>AI</span>
+                </button>
+              )}
               <button className="modal-close" type="button" onClick={onClose} aria-label="Закрыть форму">
                 <X size={18} aria-hidden="true" />
               </button>
@@ -1476,10 +1472,6 @@ function TaskDetailView() {
             </div>
           )}
           <button className="secondary-button secondary-button--icon" type="button" disabled>
-            <MessageSquarePlus size={17} aria-hidden="true" />
-            <span>AI</span>
-          </button>
-          <button className="secondary-button secondary-button--icon" type="button" disabled>
             <Play size={17} aria-hidden="true" />
             <span>Run</span>
           </button>
@@ -1495,9 +1487,6 @@ function TaskDetailView() {
           <div className="panel-tabs" aria-label="Разделы задачи">
             <button className="panel-tab panel-tab--active" type="button">
               Описание
-            </button>
-            <button className="panel-tab" type="button" disabled>
-              Обсуждение с AI
             </button>
             <button className="panel-tab" type="button" disabled>
               Отправки
