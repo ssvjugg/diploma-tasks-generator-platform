@@ -117,8 +117,8 @@ const applyGeneratedDraftToForm = (form: TaskFormState, draft: GeneratedTaskDraf
   ...form,
   title: draft.title ?? form.title,
   statement: draft.statement ?? form.statement,
-  inputFormat: draft.inputFormat ?? '',
-  outputFormat: draft.outputFormat ?? '',
+  inputFormat: draft.inputFormat ?? form.inputFormat,
+  outputFormat: draft.outputFormat ?? form.outputFormat,
   difficulty: draft.difficulty ?? form.difficulty,
 });
 
