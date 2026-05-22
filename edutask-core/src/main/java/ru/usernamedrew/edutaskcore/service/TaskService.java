@@ -8,19 +8,23 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.usernamedrew.edutaskcommon.dto.testcase.TestCaseCreateRequest;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskCreateRequest;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskResponse;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskSearchRequest;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskSummary;
 import ru.usernamedrew.edutaskcommon.dto.task.TaskUpdateRequest;
 import ru.usernamedrew.edutaskcore.entity.Task;
+import ru.usernamedrew.edutaskcore.entity.TestCase;
 import ru.usernamedrew.edutaskcore.entity.UserProfile;
 import ru.usernamedrew.edutaskcore.exception.ResourceNotFoundException;
 import ru.usernamedrew.edutaskcore.mapper.TaskMapper;
 import ru.usernamedrew.edutaskcore.repository.TaskRepository;
+import ru.usernamedrew.edutaskcore.repository.TestCaseRepository;
 import ru.usernamedrew.edutaskcore.repository.UserProfileRepository;
 import ru.usernamedrew.edutaskcore.repository.projection.TaskSummaryProjection;
 
+import java.util.List;
 import java.util.UUID;
 
 import static ru.usernamedrew.edutaskcore.repository.specification.TaskSpecifications.hasAuthor;
@@ -36,6 +40,7 @@ public class TaskService {
     private final TopicService topicService;
     private final UserProfileService userProfileService;
     private final TaskMapper taskMapper;
+    private final TestCaseRepository testCaseRepository;
 
     @Transactional(readOnly = true)
     public Page<TaskSummary> findTasks(TaskSearchRequest request, Pageable pageable) {
@@ -79,6 +84,7 @@ public class TaskService {
         task.setTopics(topicService.resolveTopics(request.topicIds()));
 
         Task savedTask = taskRepository.saveAndFlush(task);
+        createInitialTestCases(savedTask, request.testCases());
         return taskMapper.toResponse(savedTask);
     }
 
@@ -126,5 +132,25 @@ public class TaskService {
     private Task findDetailedTask(UUID id) {
         return taskRepository.findDetailedById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Task not found: " + id));
+    }
+
+    private void createInitialTestCases(Task task, List<TestCaseCreateRequest> testCaseRequests) {
+        if (testCaseRequests == null || testCaseRequests.isEmpty()) {
+            return;
+        }
+
+        List<TestCase> testCases = testCaseRequests.stream()
+            .map(request -> {
+                TestCase testCase = new TestCase();
+                testCase.setTask(task);
+                testCase.setInputData(request.inputData());
+                testCase.setExpectedOutput(request.expectedOutput());
+                testCase.setHidden(Boolean.TRUE.equals(request.hidden()));
+                testCase.setPoints(request.points() == null ? 0 : request.points());
+                return testCase;
+            })
+            .toList();
+
+        testCaseRepository.saveAllAndFlush(testCases);
     }
 }
