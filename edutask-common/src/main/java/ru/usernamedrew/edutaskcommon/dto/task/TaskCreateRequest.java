@@ -1,10 +1,13 @@
 package ru.usernamedrew.edutaskcommon.dto.task;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import ru.usernamedrew.edutaskcommon.dto.testcase.TestCaseCreateRequest;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,6 +33,10 @@ public record TaskCreateRequest(
     TaskDifficulty difficulty,
 
     @Schema(description = "Идентификаторы тем")
-    Set<UUID> topicIds
+    Set<UUID> topicIds,
+
+    @Schema(description = "Тест-кейсы, создаваемые вместе с задачей")
+    @Valid
+    List<TestCaseCreateRequest> testCases
 ) {
 }
