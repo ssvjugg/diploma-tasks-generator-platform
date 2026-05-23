@@ -46,8 +46,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME: http://95.163.227.61:8085
+      KC_HOSTNAME: http://${EDUTASK_VPS_IP}:8085
       KC_HOSTNAME_STRICT: "false"
+      EDUTASK_FRONTEND_PUBLIC_URL: http://${EDUTASK_VPS_IP}:3000
     ports:
       - "8085:8080"
     volumes:
@@ -73,9 +74,23 @@ services:
           --password "$${KEYCLOAK_ADMIN_PASSWORD}"
         /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=none
         /opt/keycloak/bin/kcadm.sh update realms/edutask -s sslRequired=none
+        FRONTEND_URL="$${EDUTASK_FRONTEND_PUBLIC_URL%/}"
+        FRONTEND_REDIRECT_URI="$${FRONTEND_URL}/*"
+        FRONTEND_CLIENT_UUID="$$(/opt/keycloak/bin/kcadm.sh get clients \
+          -r edutask \
+          -q clientId=edutask-frontend \
+          --fields id \
+          --format csv \
+          --noquotes)"
+        /opt/keycloak/bin/kcadm.sh update "clients/$${FRONTEND_CLIENT_UUID}" \
+          -r edutask \
+          -s "redirectUris=[\"$${FRONTEND_REDIRECT_URI}\"]" \
+          -s "webOrigins=[\"$${FRONTEND_URL}\"]" \
+          -s "attributes={\"pkce.code.challenge.method\":\"S256\",\"post.logout.redirect.uris\":\"$${FRONTEND_REDIRECT_URI}\",\"oauth2.device.authorization.grant.enabled\":\"false\",\"oidc.ciba.grant.enabled\":\"false\"}"
     environment:
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      EDUTASK_FRONTEND_PUBLIC_URL: http://${EDUTASK_VPS_IP}:3000
     depends_on:
       keycloak:
         condition: service_healthy
@@ -153,7 +168,7 @@ services:
       SPRING_DATASOURCE_USERNAME: user
       SPRING_DATASOURCE_PASSWORD: mysecretpassword
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      KEYCLOAK_ISSUER_URI: http://95.163.227.61:8085/realms/edutask
+      KEYCLOAK_ISSUER_URI: http://${EDUTASK_VPS_IP}:8085/realms/edutask
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
       KEYCLOAK_CLIENT_ID: edutask-frontend
     depends_on:
@@ -176,9 +191,9 @@ services:
       dockerfile: edutask-gateway/Dockerfile
     environment:
       EDUTASK_CORE_URI: http://edutask-core:8081
-      KEYCLOAK_ISSUER_URI: http://95.163.227.61:8085/realms/edutask
+      KEYCLOAK_ISSUER_URI: http://${EDUTASK_VPS_IP}:8085/realms/edutask
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
-      EDUTASK_GATEWAY_ALLOWED_ORIGIN_PATTERN: http://95.163.227.61:3000
+      EDUTASK_GATEWAY_ALLOWED_ORIGIN_PATTERN: http://${EDUTASK_VPS_IP}:3000
     depends_on:
       edutask-core:
         condition: service_healthy
@@ -248,7 +263,7 @@ services:
     build:
       context: ./edutask-frontend
       args:
-        VITE_KEYCLOAK_URL: http://95.163.227.61:8085
+        VITE_KEYCLOAK_URL: http://${EDUTASK_VPS_IP}:8085
         VITE_KEYCLOAK_REALM: edutask
         VITE_KEYCLOAK_CLIENT_ID: edutask-frontend
     environment:

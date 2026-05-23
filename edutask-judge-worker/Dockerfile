@@ -3,18 +3,22 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
 COPY pom.xml ./
-COPY edutask-common/pom.xml edutask-common/pom.xml
-COPY edutask-core/pom.xml edutask-core/pom.xml
-COPY edutask-gateway/pom.xml edutask-gateway/pom.xml
-COPY edutask-judge-worker/pom.xml edutask-judge-worker/pom.xml
-COPY edutask-llm-worker/pom.xml edutask-llm-worker/pom.xml
 
-RUN mvn -pl edutask-judge-worker -am dependency:go-offline -DskipTests
+RUN mvn -N install
+
+COPY edutask-common/pom.xml edutask-common/pom.xml
+COPY edutask-judge-worker/pom.xml edutask-judge-worker/pom.xml
+
+RUN mvn -f edutask-common/pom.xml dependency:go-offline -DskipTests
 
 COPY edutask-common/src edutask-common/src
+
+RUN mvn -f edutask-common/pom.xml install -DskipTests \
+    && mvn -f edutask-judge-worker/pom.xml dependency:go-offline -DskipTests
+
 COPY edutask-judge-worker/src edutask-judge-worker/src
 
-RUN mvn -pl edutask-judge-worker -am package -DskipTests
+RUN mvn -f edutask-judge-worker/pom.xml package -DskipTests
 
 FROM eclipse-temurin:21-jre-alpine
 

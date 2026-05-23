@@ -33,14 +33,14 @@
       "serviceAccountsEnabled": false,
       "frontchannelLogout": true,
       "redirectUris": [
-        "http://95.163.227.61:3000/*"
+        "${EDUTASK_FRONTEND_PUBLIC_URL}/*"
       ],
       "webOrigins": [
-        "http://95.163.227.61:3000"
+        "${EDUTASK_FRONTEND_PUBLIC_URL}"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://95.163.227.61:3000/*",
+        "post.logout.redirect.uris": "${EDUTASK_FRONTEND_PUBLIC_URL}/*",
         "oauth2.device.authorization.grant.enabled": "false",
         "oidc.ciba.grant.enabled": "false"
       }
