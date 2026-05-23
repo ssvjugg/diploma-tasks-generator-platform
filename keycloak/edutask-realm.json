@@ -1,6 +1,7 @@
 {
   "realm": "edutask",
   "enabled": true,
+  "sslRequired": "none",
   "registrationAllowed": false,
   "roles": {
     "realm": [

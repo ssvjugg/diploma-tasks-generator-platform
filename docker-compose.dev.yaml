@@ -45,6 +45,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
       KC_HOSTNAME: http://95.163.227.61:8085
       KC_HOSTNAME_STRICT: "false"
     ports:
@@ -58,6 +59,27 @@ services:
       timeout: 5s
       retries: 18
       start_period: 30s
+
+  keycloak-config:
+    image: quay.io/keycloak/keycloak:26.6.1
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        /opt/keycloak/bin/kcadm.sh config credentials \
+          --server http://keycloak:8080 \
+          --realm master \
+          --user "$${KEYCLOAK_ADMIN_USERNAME}" \
+          --password "$${KEYCLOAK_ADMIN_PASSWORD}"
+        /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=none
+        /opt/keycloak/bin/kcadm.sh update realms/edutask -s sslRequired=none
+    environment:
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    restart: "no"
 
   judge0-postgres:
     image: postgres:16.2
@@ -139,8 +161,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      keycloak:
-        condition: service_healthy
+      keycloak-config:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health | grep -q 'UP'"]
       interval: 10s
@@ -160,8 +182,8 @@ services:
     depends_on:
       edutask-core:
         condition: service_healthy
-      keycloak:
-        condition: service_healthy
+      keycloak-config:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q 'UP'"]
       interval: 10s
