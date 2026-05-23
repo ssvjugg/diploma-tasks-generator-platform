@@ -71,11 +71,11 @@ edutask:
       polling-interval: ${JUDGE0_POLLING_INTERVAL:500ms}
       polling-timeout: ${JUDGE0_POLLING_TIMEOUT:60s}
       default-cpu-time-limit: ${JUDGE0_DEFAULT_CPU_TIME_LIMIT:2}
-      default-memory-limit: ${JUDGE0_DEFAULT_MEMORY_LIMIT:131072}
+      default-memory-limit: ${JUDGE0_DEFAULT_MEMORY_LIMIT:125000}
       languages:
         python: ${JUDGE0_LANGUAGE_PYTHON:71}
         python3: ${JUDGE0_LANGUAGE_PYTHON3:71}
-        java: ${JUDGE0_LANGUAGE_JAVA:91}
+        java: ${JUDGE0_LANGUAGE_JAVA:62}
         javascript: ${JUDGE0_LANGUAGE_JAVASCRIPT:63}
         js: ${JUDGE0_LANGUAGE_JS:63}
         cpp: ${JUDGE0_LANGUAGE_CPP:54}
