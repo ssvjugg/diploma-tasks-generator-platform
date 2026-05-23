@@ -1,0 +1,237 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: edutask-db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: mysecretpassword
+    volumes:
+      - edutask_dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d edutask-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - edutask_dev_kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME: http://95.163.227.61:8085
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8085:8080"
+    volumes:
+      - edutask_dev_keycloak_data:/opt/keycloak/data
+      - ./keycloak/edutask-realm.json:/opt/keycloak/data/import/edutask-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9000; printf \"GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"UP\" <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  judge0-postgres:
+    image: postgres:16.2
+    env_file:
+      - judge0.conf
+    volumes:
+      - edutask_dev_judge0_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  judge0-redis:
+    image: redis:7.2.4
+    command:
+      - bash
+      - -c
+      - docker-entrypoint.sh --appendonly no --requirepass "$${REDIS_PASSWORD}"
+    env_file:
+      - judge0.conf
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  judge0-server:
+    image: judge0/judge0:latest
+    env_file:
+      - judge0.conf
+    privileged: true
+    depends_on:
+      judge0-postgres:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -rnet/http -e 'response = Net::HTTP.get_response(URI(\"http://127.0.0.1:2358/system_info\")); exit(response.code.to_i < 500 ? 0 : 1)'"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 40s
+
+  judge0-worker:
+    image: judge0/judge0:latest
+    command: ["./scripts/workers"]
+    env_file:
+      - judge0.conf
+    privileged: true
+    depends_on:
+      judge0-postgres:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+      judge0-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  edutask-core:
+    build:
+      context: .
+      dockerfile: edutask-core/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/edutask-db
+      SPRING_DATASOURCE_USERNAME: user
+      SPRING_DATASOURCE_PASSWORD: mysecretpassword
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      KEYCLOAK_ISSUER_URI: http://95.163.227.61:8085/realms/edutask
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
+      KEYCLOAK_CLIENT_ID: edutask-frontend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/actuator/health | grep -q 'UP'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 40s
+
+  edutask-gateway:
+    build:
+      context: .
+      dockerfile: edutask-gateway/Dockerfile
+    environment:
+      EDUTASK_CORE_URI: http://edutask-core:8081
+      KEYCLOAK_ISSUER_URI: http://95.163.227.61:8085/realms/edutask
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
+      EDUTASK_GATEWAY_ALLOWED_ORIGIN_PATTERN: http://95.163.227.61:3000
+    depends_on:
+      edutask-core:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q 'UP'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  edutask-llm-worker:
+    build:
+      context: .
+      dockerfile: edutask-llm-worker/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      EDUTASK_LLM_WORKER_MAX_CONCURRENT_GENERATIONS: 1
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q 'UP'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  edutask-judge-worker:
+    build:
+      context: .
+      dockerfile: edutask-judge-worker/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      JUDGE0_BASE_URL: http://judge0-server:2358
+      EDUTASK_JUDGE_WORKER_CONSUMER_CONCURRENCY: 1
+      EDUTASK_JUDGE_WORKER_MAX_CONCURRENT_SUBMISSIONS: 1
+      JUDGE0_DEFAULT_CPU_TIME_LIMIT: 2
+      JUDGE0_DEFAULT_MEMORY_LIMIT: 131072
+    depends_on:
+      kafka:
+        condition: service_healthy
+      judge0-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/actuator/health | grep -q 'UP'"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  edutask-frontend:
+    build:
+      context: ./edutask-frontend
+      args:
+        VITE_KEYCLOAK_URL: http://95.163.227.61:8085
+        VITE_KEYCLOAK_REALM: edutask
+        VITE_KEYCLOAK_CLIENT_ID: edutask-frontend
+    environment:
+      API_UPSTREAM: http://edutask-core:8081
+    ports:
+      - "3000:80"
+    depends_on:
+      edutask-core:
+        condition: service_healthy
+
+volumes:
+  edutask_dev_postgres_data:
+  edutask_dev_kafka_data:
+  edutask_dev_keycloak_data:
+  edutask_dev_judge0_postgres_data:
