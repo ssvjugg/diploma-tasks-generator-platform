@@ -26,12 +26,20 @@ import * as markdownCommands from '@uiw/react-md-editor/commands';
 import '@uiw/react-md-editor/markdown-editor.css';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { createTaskGeneration, streamTaskGeneration } from './api/generations';
+import { createCodeSubmission, getCodeSubmission, streamCodeSubmission } from './api/submissions';
 import { createTestCase, deleteTestCase, getTaskTestCases, updateTestCase } from './api/testCases';
 import { createTask, deleteTask, getTask, getTasks, updateTask } from './api/tasks';
 import { getTopic, getTopics, searchTopics } from './api/topics';
 import { useAuth } from './auth/AuthContext';
 import type { GeneratedTaskDraft, GeneratedTestCaseDraft } from './types/generation';
 import type { PageResponse } from './types/page';
+import type {
+  CodeSubmissionResponse,
+  CodeSubmissionStatus,
+  CodeSubmissionTestResultResponse,
+  ProgrammingLanguageOption,
+} from './types/submission';
+import { isTerminalSubmissionStatus } from './types/submission';
 import type { TaskCreateRequest, TaskDifficulty, TaskResponse, TaskSummary, TaskUpdateRequest } from './types/task';
 import type { TestCaseCreateRequest, TestCaseResponse } from './types/testCase';
 import type { Topic, TopicSummary } from './types/topic';
@@ -41,6 +49,7 @@ const TASK_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const TOPICS_PAGE_SIZE = 12;
 const TOPIC_SEARCH_LIMIT = 12;
 const TOPIC_SEARCH_DEBOUNCE_MS = 250;
+const SUBMISSION_POLL_INTERVAL_MS = 1800;
 const MarkdownEditor = lazy(() => import('@uiw/react-md-editor'));
 const MarkdownPreview = lazy(async () => {
   const module = await import('@uiw/react-md-editor');
@@ -175,6 +184,46 @@ const difficultyClassNames: Record<TaskDifficulty, string> = {
   MEDIUM: 'task-card__difficulty task-card__difficulty--medium',
   HARD: 'task-card__difficulty task-card__difficulty--hard',
 };
+
+const supportedSubmissionLanguages: ProgrammingLanguageOption[] = [
+  { code: 'python', label: 'Python 3' },
+  { code: 'java', label: 'Java 21' },
+  { code: 'javascript', label: 'JavaScript Node.js' },
+  { code: 'cpp', label: 'C++' },
+  { code: 'c', label: 'C' },
+];
+
+const supportedSubmissionLanguageCodes = new Set(supportedSubmissionLanguages.map((language) => language.code));
+
+const submissionStatusLabels: Record<CodeSubmissionStatus, string> = {
+  QUEUED: 'В очереди',
+  PROCESSING: 'Проверяется',
+  ACCEPTED: 'Принято',
+  WRONG_ANSWER: 'Неверный ответ',
+  COMPILATION_ERROR: 'Ошибка компиляции',
+  RUNTIME_ERROR: 'Ошибка выполнения',
+  TIME_LIMIT_EXCEEDED: 'Превышено время',
+  MEMORY_LIMIT_EXCEEDED: 'Превышена память',
+  FAILED: 'Сбой проверки',
+};
+
+const submissionStatusClassNames: Record<CodeSubmissionStatus, string> = {
+  QUEUED: 'submission-status submission-status--pending',
+  PROCESSING: 'submission-status submission-status--pending',
+  ACCEPTED: 'submission-status submission-status--accepted',
+  WRONG_ANSWER: 'submission-status submission-status--failed',
+  COMPILATION_ERROR: 'submission-status submission-status--failed',
+  RUNTIME_ERROR: 'submission-status submission-status--failed',
+  TIME_LIMIT_EXCEEDED: 'submission-status submission-status--failed',
+  MEMORY_LIMIT_EXCEEDED: 'submission-status submission-status--failed',
+  FAILED: 'submission-status submission-status--failed',
+};
+
+const formatSubmissionStatus = (status: CodeSubmissionStatus) => `${status} · ${submissionStatusLabels[status] ?? status}`;
+
+const formatLanguageLabel = (languageCode: string) => (
+  supportedSubmissionLanguages.find((language) => language.code === languageCode)?.label ?? languageCode
+);
 
 type MarkdownFieldProps = {
   label: string;
@@ -1595,6 +1644,217 @@ function TasksListView({
   );
 }
 
+type JudgePanelTab = 'testcases' | 'results';
+
+type SubmissionSummaryProps = {
+  submission: CodeSubmissionResponse;
+  isLive: boolean;
+};
+
+function SubmissionSummary({ submission, isLive }: SubmissionSummaryProps) {
+  const isTerminal = isTerminalSubmissionStatus(submission.status);
+
+  return (
+    <section className="submission-summary" aria-label="Статус проверки">
+      <div>
+        <span className={submissionStatusClassNames[submission.status]}>{formatSubmissionStatus(submission.status)}</span>
+        {isLive && !isTerminal && (
+          <span className="submission-live">
+            <LoaderCircle className="state-view__loader" size={14} aria-hidden="true" />
+            Live
+          </span>
+        )}
+      </div>
+      <div className="submission-summary__metrics">
+        <span>{submission.passedCount}/{submission.totalCount} тестов</span>
+        <span>{submission.score}/{submission.maxScore} баллов</span>
+        <span>{formatLanguageLabel(submission.language)}</span>
+      </div>
+      {submission.errorMessage && <p>{submission.errorMessage}</p>}
+    </section>
+  );
+}
+
+type PublicTestCasesPanelProps = {
+  testCases: TestCaseResponse[];
+  isLoading: boolean;
+  error: string | null;
+  onRetry: () => void;
+};
+
+function PublicTestCasesPanel({ testCases, isLoading, error, onRetry }: PublicTestCasesPanelProps) {
+  const publicTestCases = testCases.filter((testCase) => !testCase.hidden);
+  const hiddenCount = testCases.length - publicTestCases.length;
+
+  if (isLoading) {
+    return (
+      <div className="judge-panel-state">
+        <LoaderCircle className="state-view__loader" size={17} aria-hidden="true" />
+        <span>Загрузка тестов</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="judge-panel-state judge-panel-state--error">
+        <span>{error}</span>
+        <button className="text-button" type="button" onClick={onRetry}>
+          Повторить
+        </button>
+      </div>
+    );
+  }
+
+  if (publicTestCases.length === 0) {
+    return (
+      <div className="judge-panel-state">
+        <span>{hiddenCount > 0 ? 'Все тесты скрыты' : 'Открытые тесты пока не добавлены'}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="judge-public-tests">
+      {publicTestCases.map((testCase, index) => (
+        <article className="judge-public-test" key={testCase.id}>
+          <header>
+            <strong>Открытый тест {index + 1}</strong>
+            <span>{testCase.points} баллов</span>
+          </header>
+          <div>
+            <label>
+              <span>Ввод</span>
+              <pre>{testCase.inputData || 'Пустой ввод'}</pre>
+            </label>
+            <label>
+              <span>Ожидаемый вывод</span>
+              <pre>{testCase.expectedOutput || 'Пустой вывод'}</pre>
+            </label>
+          </div>
+        </article>
+      ))}
+
+      {hiddenCount > 0 && <p className="judge-panel-note">Скрытых тестов: {hiddenCount}</p>}
+    </div>
+  );
+}
+
+type SubmissionResultsPanelProps = {
+  submission: CodeSubmissionResponse | null;
+  isSubmitting: boolean;
+  isLive: boolean;
+  error: string | null;
+};
+
+function SubmissionResultsPanel({ submission, isSubmitting, isLive, error }: SubmissionResultsPanelProps) {
+  if (isSubmitting && !submission) {
+    return (
+      <div className="judge-panel-state">
+        <LoaderCircle className="state-view__loader" size={17} aria-hidden="true" />
+        <span>Отправляем решение</span>
+      </div>
+    );
+  }
+
+  if (!submission) {
+    if (error) {
+      return (
+        <div className="judge-panel-state judge-panel-state--error">
+          <span>{error}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="judge-panel-state">
+        <span>Отправьте решение, чтобы увидеть статус и результаты тестов.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="submission-results">
+      <SubmissionSummary submission={submission} isLive={isLive} />
+
+      {error && <p className="form-error">{error}</p>}
+
+      {submission.testResults.length === 0 && (
+        <div className="judge-panel-state">
+          <span>Результаты тестов появятся после начала проверки.</span>
+        </div>
+      )}
+
+      {submission.testResults.length > 0 && (
+        <div className="submission-results__list">
+          {submission.testResults.map((result) => (
+            <SubmissionResultItem result={result} key={result.id} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type SubmissionResultItemProps = {
+  result: CodeSubmissionTestResultResponse;
+};
+
+function SubmissionResultItem({ result }: SubmissionResultItemProps) {
+  const isAccepted = result.status === 'ACCEPTED';
+  const isPending = !isTerminalSubmissionStatus(result.status);
+  const className = [
+    'submission-result',
+    isAccepted ? 'submission-result--accepted' : '',
+    !isAccepted && !isPending ? 'submission-result--failed' : '',
+    isPending ? 'submission-result--pending' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <article className={className}>
+      <header className="submission-result__header">
+        <div>
+          <strong>Тест {result.index + 1}</strong>
+          <span className={`test-case-visibility ${result.hidden ? 'test-case-visibility--hidden' : ''}`}>
+            {result.hidden ? 'Скрытый' : 'Открытый'}
+          </span>
+          <span className={submissionStatusClassNames[result.status]}>{formatSubmissionStatus(result.status)}</span>
+        </div>
+        <span>{result.points} баллов</span>
+      </header>
+
+      <div className="submission-result__meta">
+        {result.time !== null && <span>Время: {result.time} c</span>}
+        {result.memory !== null && <span>Память: {result.memory} KB</span>}
+        {result.hidden && result.errorMessage && <span>{result.errorMessage}</span>}
+      </div>
+
+      {!result.hidden && (
+        <div className="submission-result__io">
+          <label>
+            <span>Ввод</span>
+            <pre>{result.inputData ?? 'Пустой ввод'}</pre>
+          </label>
+          <label>
+            <span>Ожидаемый вывод</span>
+            <pre>{result.expectedOutput ?? 'Пустой вывод'}</pre>
+          </label>
+          <label>
+            <span>Фактический вывод</span>
+            <pre>{result.actualOutput ?? 'Пустой вывод'}</pre>
+          </label>
+          {(result.stderr || result.compileOutput || result.errorMessage) && (
+            <label>
+              <span>Ошибка</span>
+              <pre>{result.stderr ?? result.compileOutput ?? result.errorMessage}</pre>
+            </label>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function TaskDetailView() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -1605,7 +1865,13 @@ function TaskDetailView() {
   const [isTestCasesLoading, setIsTestCasesLoading] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [testCasesError, setTestCasesError] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState(supportedSubmissionLanguages[0]?.code ?? '');
   const [solutionCode, setSolutionCode] = useState('');
+  const [judgePanelTab, setJudgePanelTab] = useState<JudgePanelTab>('testcases');
+  const [activeSubmission, setActiveSubmission] = useState<CodeSubmissionResponse | null>(null);
+  const [isSubmittingSolution, setIsSubmittingSolution] = useState(false);
+  const [isSubmissionLive, setIsSubmissionLive] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
@@ -1619,6 +1885,9 @@ function TaskDetailView() {
   const [testCaseFormError, setTestCaseFormError] = useState<string | null>(null);
   const [deletingTestCaseId, setDeletingTestCaseId] = useState<string | null>(null);
   const taskMenuRef = useRef<HTMLDivElement | null>(null);
+  const submissionStreamControllerRef = useRef<AbortController | null>(null);
+  const submissionPollingTimeoutRef = useRef<number | null>(null);
+  const submissionWatchVersionRef = useRef(0);
 
   const loadTask = useCallback(async (signal?: AbortSignal, shouldApplyResult: () => boolean = () => true) => {
     if (!taskId) {
@@ -1682,6 +1951,110 @@ function TaskDetailView() {
     }
   }, [taskId]);
 
+  const cancelSubmissionWatch = useCallback(() => {
+    submissionWatchVersionRef.current += 1;
+    submissionStreamControllerRef.current?.abort();
+    submissionStreamControllerRef.current = null;
+
+    if (submissionPollingTimeoutRef.current !== null) {
+      window.clearTimeout(submissionPollingTimeoutRef.current);
+      submissionPollingTimeoutRef.current = null;
+    }
+  }, []);
+
+  const scheduleSubmissionPolling = useCallback((submissionId: string, watchVersion: number) => {
+    if (submissionPollingTimeoutRef.current !== null) {
+      window.clearTimeout(submissionPollingTimeoutRef.current);
+    }
+
+    submissionPollingTimeoutRef.current = window.setTimeout(() => {
+      if (submissionWatchVersionRef.current !== watchVersion) {
+        return;
+      }
+
+      void getCodeSubmission(submissionId)
+        .then((submission) => {
+          if (submissionWatchVersionRef.current !== watchVersion) {
+            return;
+          }
+
+          setActiveSubmission(submission);
+
+          if (isTerminalSubmissionStatus(submission.status)) {
+            setIsSubmissionLive(false);
+            return;
+          }
+
+          scheduleSubmissionPolling(submissionId, watchVersion);
+        })
+        .catch((requestError) => {
+          if (submissionWatchVersionRef.current !== watchVersion) {
+            return;
+          }
+
+          setSubmissionError(requestError instanceof Error ? requestError.message : 'Не удалось обновить статус проверки');
+          setIsSubmissionLive(false);
+        });
+    }, SUBMISSION_POLL_INTERVAL_MS);
+  }, []);
+
+  const watchSubmission = useCallback((submissionId: string) => {
+    cancelSubmissionWatch();
+
+    const watchVersion = submissionWatchVersionRef.current;
+    const controller = new AbortController();
+    let latestSubmission: CodeSubmissionResponse | null = null;
+
+    submissionStreamControllerRef.current = controller;
+    setIsSubmissionLive(true);
+
+    void streamCodeSubmission(submissionId, {
+      signal: controller.signal,
+      onMessage: (submission) => {
+        if (submissionWatchVersionRef.current !== watchVersion) {
+          return;
+        }
+
+        latestSubmission = submission;
+        setActiveSubmission(submission);
+
+        if (isTerminalSubmissionStatus(submission.status)) {
+          setIsSubmissionLive(false);
+          controller.abort();
+        }
+      },
+    })
+      .then(() => {
+        if (submissionWatchVersionRef.current !== watchVersion) {
+          return;
+        }
+
+        setIsSubmissionLive(false);
+
+        if (!latestSubmission || !isTerminalSubmissionStatus(latestSubmission.status)) {
+          setIsSubmissionLive(true);
+          scheduleSubmissionPolling(submissionId, watchVersion);
+        }
+      })
+      .catch((requestError) => {
+        if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+          return;
+        }
+
+        if (submissionWatchVersionRef.current !== watchVersion) {
+          return;
+        }
+
+        setSubmissionError(
+          requestError instanceof Error
+            ? `${requestError.message}. Переключаюсь на периодическое обновление.`
+            : 'SSE поток недоступен. Переключаюсь на периодическое обновление.',
+        );
+        setIsSubmissionLive(true);
+        scheduleSubmissionPolling(submissionId, watchVersion);
+      });
+  }, [cancelSubmissionWatch, scheduleSubmissionPolling]);
+
   useEffect(() => {
     const controller = new AbortController();
     let isActive = true;
@@ -1703,6 +2076,10 @@ function TaskDetailView() {
       controller.abort();
     };
   }, [loadTestCases]);
+
+  useEffect(() => () => {
+    cancelSubmissionWatch();
+  }, [cancelSubmissionWatch]);
 
   useEffect(() => {
     if (!isTaskMenuOpen) {
@@ -1860,6 +2237,50 @@ function TaskDetailView() {
     }
   };
 
+  const handleSubmitSolution = async () => {
+    if (!task || isSubmittingSolution) {
+      return;
+    }
+
+    if (!selectedLanguage || !supportedSubmissionLanguageCodes.has(selectedLanguage)) {
+      setSubmissionError('Выберите поддерживаемый язык программирования.');
+      setJudgePanelTab('results');
+      return;
+    }
+
+    if (!solutionCode.trim()) {
+      setSubmissionError('Добавьте исходный код перед отправкой решения.');
+      setJudgePanelTab('results');
+      return;
+    }
+
+    cancelSubmissionWatch();
+    setIsSubmissionLive(false);
+    setIsSubmittingSolution(true);
+    setSubmissionError(null);
+    setJudgePanelTab('results');
+
+    try {
+      const submission = await createCodeSubmission(task.id, {
+        language: selectedLanguage,
+        sourceCode: solutionCode,
+      });
+
+      setActiveSubmission(submission);
+
+      if (!isTerminalSubmissionStatus(submission.status)) {
+        watchSubmission(submission.submissionId);
+      }
+    } catch (requestError) {
+      setSubmissionError(requestError instanceof Error ? requestError.message : 'Не удалось отправить решение');
+    } finally {
+      setIsSubmittingSolution(false);
+    }
+  };
+
+  const isSubmissionInProgress = Boolean(activeSubmission && !isTerminalSubmissionStatus(activeSubmission.status));
+  const canSubmitSolution = !isSubmittingSolution && !isSubmissionInProgress && Boolean(task);
+
   if (isTaskLoading) {
     return (
       <div className="state-view task-detail-state">
@@ -1926,9 +2347,19 @@ function TaskDetailView() {
             <Play size={17} aria-hidden="true" />
             <span>Run</span>
           </button>
-          <button className="text-button text-button--icon" type="button" disabled>
-            <Send size={17} aria-hidden="true" />
-            <span>Submit</span>
+          <button
+            className="text-button text-button--icon"
+            type="button"
+            onClick={handleSubmitSolution}
+            disabled={!canSubmitSolution}
+            title={isSubmissionInProgress ? 'Дождитесь завершения текущей проверки' : 'Отправить решение'}
+          >
+            {isSubmittingSolution ? (
+              <LoaderCircle className="state-view__loader" size={17} aria-hidden="true" />
+            ) : (
+              <Send size={17} aria-hidden="true" />
+            )}
+            <span>{isSubmittingSolution ? 'Отправка' : 'Submit'}</span>
           </button>
         </div>
       </header>
@@ -2082,8 +2513,20 @@ function TaskDetailView() {
               <Code2 size={19} aria-hidden="true" />
               <span>Code</span>
             </div>
-            <select aria-label="Язык решения" defaultValue="" disabled>
-              <option value="">Language</option>
+            <select
+              aria-label="Язык решения"
+              value={selectedLanguage}
+              onChange={(event) => {
+                setSelectedLanguage(event.target.value);
+                setSubmissionError(null);
+              }}
+              disabled={isSubmittingSolution || isSubmissionInProgress}
+            >
+              {supportedSubmissionLanguages.map((language) => (
+                <option value={language.code} key={language.code}>
+                  {language.label}
+                </option>
+              ))}
             </select>
           </header>
 
@@ -2092,21 +2535,43 @@ function TaskDetailView() {
             value={solutionCode}
             onChange={(event) => setSolutionCode(event.target.value)}
             spellCheck={false}
-            placeholder="Напишите решение здесь. Отправка в Judge0 будет подключена следующим шагом."
+            placeholder="Напишите решение здесь и отправьте его на проверку."
           />
 
           <footer className="judge-panel">
             <div className="judge-panel__tabs">
-              <button className="judge-tab judge-tab--active" type="button">
+              <button
+                className={`judge-tab ${judgePanelTab === 'testcases' ? 'judge-tab--active' : ''}`}
+                type="button"
+                onClick={() => setJudgePanelTab('testcases')}
+              >
                 <Terminal size={16} aria-hidden="true" />
                 Testcase
               </button>
-              <button className="judge-tab" type="button" disabled>
+              <button
+                className={`judge-tab ${judgePanelTab === 'results' ? 'judge-tab--active' : ''}`}
+                type="button"
+                onClick={() => setJudgePanelTab('results')}
+              >
                 Test Result
               </button>
             </div>
             <div className="judge-panel__body">
-              <span>Тест-кейсы будут загружаться вместе с проверкой решений.</span>
+              {judgePanelTab === 'testcases' ? (
+                <PublicTestCasesPanel
+                  testCases={testCases}
+                  isLoading={isTestCasesLoading}
+                  error={testCasesError}
+                  onRetry={() => loadTestCases()}
+                />
+              ) : (
+                <SubmissionResultsPanel
+                  submission={activeSubmission}
+                  isSubmitting={isSubmittingSolution}
+                  isLive={isSubmissionLive}
+                  error={submissionError}
+                />
+              )}
             </div>
           </footer>
         </section>

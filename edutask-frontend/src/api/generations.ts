@@ -1,5 +1,6 @@
 import type { TaskGenerationCreateRequest, TaskGenerationResponse } from '../types/generation';
 import { apiFetch } from './client';
+import { readSseStream } from './sse';
 
 export async function createTaskGeneration(
   payload: TaskGenerationCreateRequest,
@@ -41,51 +42,5 @@ export async function streamTaskGeneration(
     throw new Error(`Не удалось открыть поток генерации: ${response.status}`);
   }
 
-  const reader = response.body?.getReader();
-
-  if (!reader) {
-    throw new Error('Поток генерации недоступен');
-  }
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    buffer += decoder.decode(value, { stream: true });
-    buffer = consumeSseBuffer(buffer, onMessage);
-  }
-
-  buffer += decoder.decode();
-  consumeSseBuffer(`${buffer}\n\n`, onMessage);
-}
-
-function consumeSseBuffer(
-  buffer: string,
-  onMessage: (response: TaskGenerationResponse) => void,
-): string {
-  const normalizedBuffer = buffer.replace(/\r\n/g, '\n');
-  const events = normalizedBuffer.split('\n\n');
-  const rest = events.pop() ?? '';
-
-  events.forEach((eventText) => {
-    const data = eventText
-      .split('\n')
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice(5).trimStart())
-      .join('\n');
-
-    if (!data) {
-      return;
-    }
-
-    onMessage(JSON.parse(data) as TaskGenerationResponse);
-  });
-
-  return rest;
+  await readSseStream<TaskGenerationResponse>(response, { onMessage });
 }
