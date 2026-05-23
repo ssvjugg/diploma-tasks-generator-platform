@@ -11,6 +11,12 @@ public final class TaskGenerationKafkaTopics {
         if (properties.getTopics().getTaskGenerationResponses().equals(sourceTopic)) {
             return properties.getTopics().getTaskGenerationResponsesDlt();
         }
+        if (properties.getTopics().getCodeSubmissionRequests().equals(sourceTopic)) {
+            return properties.getTopics().getCodeSubmissionRequestsDlt();
+        }
+        if (properties.getTopics().getCodeSubmissionResults().equals(sourceTopic)) {
+            return properties.getTopics().getCodeSubmissionResultsDlt();
+        }
         return sourceTopic + ".dlt";
     }
 }

@@ -53,6 +53,22 @@ public class TaskGenerationKafkaProperties {
         @NotNull
         @NotBlank
         private String taskGenerationResponsesDlt = "task-generation-responses.dlt";
+
+        @NotNull
+        @NotBlank
+        private String codeSubmissionRequests = "code-submission-requests";
+
+        @NotNull
+        @NotBlank
+        private String codeSubmissionResults = "code-submission-results";
+
+        @NotNull
+        @NotBlank
+        private String codeSubmissionRequestsDlt = "code-submission-requests.dlt";
+
+        @NotNull
+        @NotBlank
+        private String codeSubmissionResultsDlt = "code-submission-results.dlt";
     }
 
     @Getter
