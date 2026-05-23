@@ -23,7 +23,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -114,9 +116,11 @@ public class CodeJudgingService {
             .filter(result -> result.status() == JudgeSubmissionStatus.ACCEPTED)
             .count();
         int maxScore = sumMaxScore(event.testCases());
+        Map<Integer, Integer> pointsByIndex = event.testCases().stream()
+            .collect(Collectors.toMap(JudgeTestCasePayload::index, JudgeTestCasePayload::points));
         int score = testResults.stream()
             .filter(result -> result.status() == JudgeSubmissionStatus.ACCEPTED)
-            .mapToInt(result -> pointsFor(event.testCases(), result.index()))
+            .mapToInt(result -> pointsByIndex.getOrDefault(result.index(), 0))
             .sum();
 
         return new CodeSubmissionResultEvent(
@@ -260,14 +264,6 @@ public class CodeJudgingService {
         return testCases.stream()
             .mapToInt(JudgeTestCasePayload::points)
             .sum();
-    }
-
-    private int pointsFor(List<JudgeTestCasePayload> testCases, int index) {
-        return testCases.stream()
-            .filter(testCase -> testCase.index() == index)
-            .findFirst()
-            .map(JudgeTestCasePayload::points)
-            .orElse(0);
     }
 
     private record PendingJudgeSubmission(
