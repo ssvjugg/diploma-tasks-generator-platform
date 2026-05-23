@@ -112,7 +112,7 @@ services:
       start_period: 10s
 
   judge0-server:
-    image: judge0/judge0:latest
+    image: judge0/judge0:1.13.1
     env_file:
       - judge0.conf
     privileged: true
@@ -123,14 +123,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "ruby -rnet/http -e 'response = Net::HTTP.get_response(URI(\"http://127.0.0.1:2358/system_info\")); exit(response.code.to_i < 500 ? 0 : 1)'"]
+      test: ["CMD-SHELL", "ruby -rnet/http -rjson -e 'response = Net::HTTP.get_response(URI(\"http://127.0.0.1:2358/system_info\")); languages = JSON.parse(Net::HTTP.get(URI(\"http://127.0.0.1:2358/languages\"))); ids = languages.map { |language| language[\"id\"] }; required = [50, 54, 62, 63, 71]; exit(response.code.to_i < 500 && (required - ids).empty? ? 0 : 1)'"]
       interval: 10s
       timeout: 10s
       retries: 18
       start_period: 40s
 
   judge0-worker:
-    image: judge0/judge0:latest
+    image: judge0/judge0:1.13.1
     command: ["./scripts/workers"]
     env_file:
       - judge0.conf
@@ -224,7 +224,14 @@ services:
       EDUTASK_JUDGE_WORKER_CONSUMER_CONCURRENCY: 1
       EDUTASK_JUDGE_WORKER_MAX_CONCURRENT_SUBMISSIONS: 1
       JUDGE0_DEFAULT_CPU_TIME_LIMIT: 2
-      JUDGE0_DEFAULT_MEMORY_LIMIT: 131072
+      JUDGE0_DEFAULT_MEMORY_LIMIT: 128000
+      JUDGE0_LANGUAGE_PYTHON: 71
+      JUDGE0_LANGUAGE_PYTHON3: 71
+      JUDGE0_LANGUAGE_JAVA: 62
+      JUDGE0_LANGUAGE_JAVASCRIPT: 63
+      JUDGE0_LANGUAGE_JS: 63
+      JUDGE0_LANGUAGE_CPP: 54
+      JUDGE0_LANGUAGE_C: 50
     depends_on:
       kafka:
         condition: service_healthy
