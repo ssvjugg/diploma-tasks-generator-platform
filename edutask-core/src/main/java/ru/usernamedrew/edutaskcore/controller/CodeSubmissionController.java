@@ -69,9 +69,9 @@ public class CodeSubmissionController {
     @GetMapping(path = "/submissions/{submissionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @PreAuthorize("isAuthenticated()")
     public SseEmitter streamSubmission(@PathVariable UUID submissionId, @AuthenticationPrincipal Jwt jwt) {
-        CodeSubmissionResponse initialState = codeSubmissionService.getSubmission(submissionId, jwt);
+        CodeSubmissionResponse initialState = codeSubmissionService.getSubmission(submissionId, jwt, false);
         SseEmitter emitter = codeSubmissionSseService.subscribe(initialState);
-        CodeSubmissionResponse latestState = codeSubmissionService.getSubmission(submissionId, jwt);
+        CodeSubmissionResponse latestState = codeSubmissionService.getSubmission(submissionId, jwt, false);
         codeSubmissionSseService.synchronize(initialState, latestState);
         return emitter;
     }

@@ -58,7 +58,7 @@ public class CodeSubmissionResultHandler {
             submission.getScore(),
             submission.getMaxScore()
         );
-        publishAfterCommit(submissionMapper.toResponse(submission, true));
+        publishAfterCommit(submissionMapper.toResponse(submission, false));
     }
 
     private void validateEventTarget(Submission submission, CodeSubmissionResultEvent event) {

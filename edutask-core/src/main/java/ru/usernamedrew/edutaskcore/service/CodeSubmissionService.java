@@ -84,10 +84,15 @@ public class CodeSubmissionService {
 
     @Transactional(readOnly = true)
     public CodeSubmissionResponse getSubmission(UUID submissionId, Jwt jwt) {
+        return getSubmission(submissionId, jwt, true);
+    }
+
+    @Transactional(readOnly = true)
+    public CodeSubmissionResponse getSubmission(UUID submissionId, Jwt jwt, boolean includeSourceCode) {
         UserProfile currentUser = userProfileService.resolveCurrentUser(jwt);
         Submission submission = findDetailed(submissionId);
         assertCanRead(submission, currentUser);
-        return submissionMapper.toResponse(submission, true);
+        return submissionMapper.toResponse(submission, includeSourceCode);
     }
 
     @Transactional(readOnly = true)
