@@ -46,9 +46,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME: http://${EDUTASK_VPS_IP}:8085
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
       KC_HOSTNAME_STRICT: "false"
-      EDUTASK_FRONTEND_PUBLIC_URL: http://${EDUTASK_VPS_IP}:3000
+      EDUTASK_FRONTEND_PUBLIC_URL: ${EDUTASK_FRONTEND_PUBLIC_URL}
     ports:
       - "8085:8080"
     volumes:
@@ -90,7 +90,7 @@ services:
     environment:
       KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      EDUTASK_FRONTEND_PUBLIC_URL: http://${EDUTASK_VPS_IP}:3000
+      EDUTASK_FRONTEND_PUBLIC_URL: ${EDUTASK_FRONTEND_PUBLIC_URL}
     depends_on:
       keycloak:
         condition: service_healthy
@@ -168,7 +168,7 @@ services:
       SPRING_DATASOURCE_USERNAME: user
       SPRING_DATASOURCE_PASSWORD: mysecretpassword
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      KEYCLOAK_ISSUER_URI: http://${EDUTASK_VPS_IP}:8085/realms/edutask
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_URL}/realms/edutask
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
       KEYCLOAK_CLIENT_ID: edutask-frontend
     depends_on:
@@ -191,9 +191,9 @@ services:
       dockerfile: edutask-gateway/Dockerfile
     environment:
       EDUTASK_CORE_URI: http://edutask-core:8081
-      KEYCLOAK_ISSUER_URI: http://${EDUTASK_VPS_IP}:8085/realms/edutask
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_PUBLIC_URL}/realms/edutask
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/edutask/protocol/openid-connect/certs
-      EDUTASK_GATEWAY_ALLOWED_ORIGIN_PATTERN: http://${EDUTASK_VPS_IP}:3000
+      EDUTASK_GATEWAY_ALLOWED_ORIGIN_PATTERN: ${EDUTASK_FRONTEND_PUBLIC_URL}
     depends_on:
       edutask-core:
         condition: service_healthy
@@ -263,7 +263,7 @@ services:
     build:
       context: ./edutask-frontend
       args:
-        VITE_KEYCLOAK_URL: http://${EDUTASK_VPS_IP}:8085
+        VITE_KEYCLOAK_URL: ${KEYCLOAK_PUBLIC_URL}
         VITE_KEYCLOAK_REALM: edutask
         VITE_KEYCLOAK_CLIENT_ID: edutask-frontend
     environment:
