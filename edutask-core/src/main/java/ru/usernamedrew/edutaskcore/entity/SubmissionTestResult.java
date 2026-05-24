@@ -5,7 +5,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import ru.usernamedrew.edutaskcommon.event.judge.JudgeSubmissionStatus;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -23,16 +25,31 @@ public class SubmissionTestResult {
     @JoinColumn(name = "submission_id", nullable = false)
     private Submission submission;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "test_case_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_case_id")
     private TestCase testCase;
 
+    @Column(name = "test_case_index", nullable = false)
+    private int testCaseIndex;
+
+    @Column(name = "is_hidden", nullable = false)
+    private boolean hidden;
+
+    @Column(name = "input_data", columnDefinition = "text")
+    private String inputData;
+
+    @Column(name = "expected_output", columnDefinition = "text")
+    private String expectedOutput;
+
+    @Column(nullable = false)
+    private int points = 0;
+
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private SubmissionTestResultStatus status;
+    @Column(nullable = false, length = 30)
+    private JudgeSubmissionStatus status;
 
     @Column(name = "actual_output", columnDefinition = "text")
-    private String actualOutput;
+    private String stdout;
 
     @Column(columnDefinition = "text")
     private String stderr;
@@ -44,14 +61,16 @@ public class SubmissionTestResult {
     private String errorMessage;
 
     @Column(name = "judge_token")
-    private String judgeToken;
+    private String judge0Token;
+
+    @Column(precision = 10, scale = 3)
+    private BigDecimal time;
+
+    @Column
+    private Integer memory;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    public enum SubmissionTestResultStatus {
-        ACCEPTED, WRONG_ANSWER, TIME_LIMIT, MEMORY_LIMIT, RUNTIME_ERROR, COMPILATION_ERROR
-    }
 }
-

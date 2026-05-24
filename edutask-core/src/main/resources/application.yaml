@@ -54,7 +54,7 @@ spring:
       properties:
         spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
         spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
-        spring.json.trusted.packages: ru.usernamedrew.edutaskcommon.event.generation
+        spring.json.trusted.packages: ru.usernamedrew.edutaskcommon.event.generation,ru.usernamedrew.edutaskcommon.event.judge
         isolation.level: read_committed
     listener:
       missing-topics-fatal: false
@@ -82,12 +82,21 @@ edutask:
       task-generation-responses: ${TASK_GENERATION_RESPONSES_TOPIC:task-generation-responses}
       task-generation-requests-dlt: ${TASK_GENERATION_REQUESTS_DLT_TOPIC:task-generation-requests.dlt}
       task-generation-responses-dlt: ${TASK_GENERATION_RESPONSES_DLT_TOPIC:task-generation-responses.dlt}
+      code-submission-requests: ${CODE_SUBMISSION_REQUESTS_TOPIC:code-submission-requests}
+      code-submission-results: ${CODE_SUBMISSION_RESULTS_TOPIC:code-submission-results}
+      code-submission-requests-dlt: ${CODE_SUBMISSION_REQUESTS_DLT_TOPIC:code-submission-requests.dlt}
+      code-submission-results-dlt: ${CODE_SUBMISSION_RESULTS_DLT_TOPIC:code-submission-results.dlt}
 
   generation:
     default-temperature: ${EDUTASK_GENERATION_DEFAULT_TEMPERATURE:0.3}
     kafka-send-timeout: ${EDUTASK_GENERATION_KAFKA_SEND_TIMEOUT:10s}
     sse-timeout: ${EDUTASK_GENERATION_SSE_TIMEOUT:10m}
     schema-version: ${EDUTASK_GENERATION_SCHEMA_VERSION:1}
+
+  submissions:
+    kafka-send-timeout: ${EDUTASK_SUBMISSIONS_KAFKA_SEND_TIMEOUT:10s}
+    sse-timeout: ${EDUTASK_SUBMISSIONS_SSE_TIMEOUT:10m}
+    schema-version: ${EDUTASK_SUBMISSIONS_SCHEMA_VERSION:1}
 
   security:
     keycloak:

@@ -71,8 +71,84 @@ services:
     volumes:
       - edutask_elasticsearch_data:/usr/share/elasticsearch/data
 
+  judge0-server:
+    image: judge0/judge0:latest
+    container_name: edutask-judge0-server
+    profiles:
+      - judge
+    env_file:
+      - judge0.conf
+    ports:
+      - "2358:2358"
+    privileged: true
+    depends_on:
+      - judge0-postgres
+      - judge0-redis
+    restart: unless-stopped
+
+  judge0-worker:
+    image: judge0/judge0:latest
+    container_name: edutask-judge0-worker
+    profiles:
+      - judge
+    command: ["./scripts/workers"]
+    env_file:
+      - judge0.conf
+    privileged: true
+    depends_on:
+      - judge0-server
+      - judge0-postgres
+      - judge0-redis
+    restart: unless-stopped
+
+  judge0-postgres:
+    image: postgres:16.2
+    container_name: edutask-judge0-postgres
+    profiles:
+      - judge
+    env_file:
+      - judge0.conf
+    volumes:
+      - edutask_judge0_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  judge0-redis:
+    image: redis:7.2.4
+    container_name: edutask-judge0-redis
+    profiles:
+      - judge
+    command: [
+      "bash", "-c",
+      "docker-entrypoint.sh --appendonly no --requirepass \"$${REDIS_PASSWORD}\""
+    ]
+    env_file:
+      - judge0.conf
+    restart: unless-stopped
+
+  judge-worker:
+    build:
+      context: .
+      dockerfile: edutask-judge-worker/Dockerfile
+    container_name: edutask-judge-worker
+    profiles:
+      - judge
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      JUDGE0_BASE_URL: http://judge0-server:2358
+      EDUTASK_JUDGE_WORKER_CONSUMER_CONCURRENCY: 1
+      EDUTASK_JUDGE_WORKER_MAX_CONCURRENT_SUBMISSIONS: 1
+      JUDGE0_DEFAULT_CPU_TIME_LIMIT: 2
+      JUDGE0_DEFAULT_MEMORY_LIMIT: 131072
+    ports:
+      - "8083:8083"
+    depends_on:
+      - kafka
+      - judge0-server
+      - judge0-worker
+
 volumes:
   edutask_keycloak_data:
   edutask_postgres_data:
   edutask_kafka_data:
   edutask_elasticsearch_data:
+  edutask_judge0_postgres_data:

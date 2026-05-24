@@ -1,0 +1,49 @@
+{
+  "realm": "edutask",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "STUDENT",
+        "description": "Can read tasks and topics"
+      },
+      {
+        "name": "TEACHER",
+        "description": "Can read and manage tasks and topics"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Can read and manage tasks and topics, including changing task authors"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "edutask-frontend",
+      "name": "edutask-frontend",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "${EDUTASK_FRONTEND_PUBLIC_URL}/*"
+      ],
+      "webOrigins": [
+        "${EDUTASK_FRONTEND_PUBLIC_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${EDUTASK_FRONTEND_PUBLIC_URL}/*",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "oidc.ciba.grant.enabled": "false"
+      }
+    }
+  ]
+}

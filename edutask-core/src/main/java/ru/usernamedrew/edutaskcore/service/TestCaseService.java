@@ -35,6 +35,12 @@ public class TestCaseService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<TestCase> getActualTestCasesForJudging(UUID taskId) {
+        ensureTaskExists(taskId);
+        return testCaseRepository.findByTaskIdOrderByCreatedAtAscIdAsc(taskId);
+    }
+
     @Transactional
     public TestCaseResponse createTestCase(UUID taskId, TestCaseCreateRequest request) {
         Task task = taskRepository.findById(taskId)

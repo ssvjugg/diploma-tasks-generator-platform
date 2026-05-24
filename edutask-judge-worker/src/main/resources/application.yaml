@@ -1,0 +1,82 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: edutask-judge-worker
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 10
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
+        linger.ms: 10
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:edutask-judge-worker-code-submissions}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: ru.usernamedrew.edutaskcommon.event.judge
+        isolation.level: read_committed
+    listener:
+      missing-topics-fatal: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+edutask:
+  kafka:
+    partitions: ${EDUTASK_KAFKA_PARTITIONS:3}
+    replication-factor: ${EDUTASK_KAFKA_REPLICATION_FACTOR:1}
+    consumer-concurrency: ${EDUTASK_JUDGE_WORKER_CONSUMER_CONCURRENCY:1}
+    retry:
+      max-attempts: ${EDUTASK_KAFKA_RETRY_MAX_ATTEMPTS:3}
+      backoff: ${EDUTASK_KAFKA_RETRY_BACKOFF:2s}
+    topics:
+      task-generation-requests: ${TASK_GENERATION_REQUESTS_TOPIC:task-generation-requests}
+      task-generation-responses: ${TASK_GENERATION_RESPONSES_TOPIC:task-generation-responses}
+      task-generation-requests-dlt: ${TASK_GENERATION_REQUESTS_DLT_TOPIC:task-generation-requests.dlt}
+      task-generation-responses-dlt: ${TASK_GENERATION_RESPONSES_DLT_TOPIC:task-generation-responses.dlt}
+      code-submission-requests: ${CODE_SUBMISSION_REQUESTS_TOPIC:code-submission-requests}
+      code-submission-results: ${CODE_SUBMISSION_RESULTS_TOPIC:code-submission-results}
+      code-submission-requests-dlt: ${CODE_SUBMISSION_REQUESTS_DLT_TOPIC:code-submission-requests.dlt}
+      code-submission-results-dlt: ${CODE_SUBMISSION_RESULTS_DLT_TOPIC:code-submission-results.dlt}
+
+  judge-worker:
+    max-concurrent-submissions: ${EDUTASK_JUDGE_WORKER_MAX_CONCURRENT_SUBMISSIONS:1}
+    schema-version: ${EDUTASK_JUDGE_WORKER_SCHEMA_VERSION:1}
+    response-send-timeout: ${EDUTASK_JUDGE_WORKER_RESPONSE_SEND_TIMEOUT:10s}
+    concurrency-acquire-timeout: ${EDUTASK_JUDGE_WORKER_CONCURRENCY_ACQUIRE_TIMEOUT:30s}
+    judge0:
+      base-url: ${JUDGE0_BASE_URL:http://localhost:2358}
+      request-timeout: ${JUDGE0_REQUEST_TIMEOUT:10s}
+      polling-interval: ${JUDGE0_POLLING_INTERVAL:500ms}
+      polling-timeout: ${JUDGE0_POLLING_TIMEOUT:60s}
+      default-cpu-time-limit: ${JUDGE0_DEFAULT_CPU_TIME_LIMIT:2}
+      default-memory-limit: ${JUDGE0_DEFAULT_MEMORY_LIMIT:125000}
+      languages:
+        python: ${JUDGE0_LANGUAGE_PYTHON:71}
+        python3: ${JUDGE0_LANGUAGE_PYTHON3:71}
+        java: ${JUDGE0_LANGUAGE_JAVA:62}
+        javascript: ${JUDGE0_LANGUAGE_JAVASCRIPT:63}
+        js: ${JUDGE0_LANGUAGE_JS:63}
+        cpp: ${JUDGE0_LANGUAGE_CPP:54}
+        c: ${JUDGE0_LANGUAGE_C:50}

@@ -32,6 +32,7 @@
         <module>edutask-common</module>
         <module>edutask-core</module>
         <module>edutask-gateway</module>
+        <module>edutask-judge-worker</module>
         <module>edutask-llm-worker</module>
     </modules>
 
