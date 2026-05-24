@@ -41,6 +41,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setProfile(null);
   }, []);
 
+  const login = useCallback(async () => {
+    setAuthError(null);
+    try {
+      await redirectToLogin();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Не удалось перейти к Keycloak.');
+    }
+  }, []);
+
   useEffect(() => {
     configureApiAuth({
       getAccessToken,
@@ -94,10 +103,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     authError,
     user,
     profile,
-    login: redirectToLogin,
+    login,
     logout: redirectToLogout,
     hasRole: (role) => user?.roles.includes(role) ?? false,
-  }), [authError, isInitializing, profile, user]);
+  }), [authError, isInitializing, login, profile, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
