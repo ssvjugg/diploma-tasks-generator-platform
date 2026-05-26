@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net" agent="Codex">
   <diagram id="edutask-context" name="EduTask Context">
-    <mxGraphModel dx="1698" dy="1185" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
+    <mxGraphModel dx="2076" dy="1449" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -8,7 +8,7 @@
           <mxGeometry height="60" width="940" x="510" y="20" as="geometry" />
         </mxCell>
         <mxCell id="platform-boundary" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#334155;dashed=1;dashPattern=8 4;fontStyle=1;fontSize=18;fontColor=#0F172A;align=center;verticalAlign=top;spacingTop=14;" value="EduTask Platform&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;Сервис генерации и поддержки банка задач по программированию&lt;/font&gt;&lt;br&gt;&lt;br&gt;" vertex="1">
-          <mxGeometry height="1160" width="1570" x="360" y="110" as="geometry" />
+          <mxGeometry height="1160" width="1480" x="360" y="110" as="geometry" />
         </mxCell>
         <mxCell id="actor-student" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=14;fontColor=#111827;rotation=0;rounded=0;" value="Ученик&lt;br&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;Просмотр и решение задач&lt;/font&gt;&lt;br&gt;&lt;br&gt;" vertex="1">
           <mxGeometry height="135" width="58" x="96.5" y="130" as="geometry" />
@@ -40,11 +40,8 @@
         <mxCell id="kafka" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#FFE4E6;strokeColor=#E11D48;fontStyle=1;fontSize=15;fontColor=#0F172A;;rotation=0;rounded=0;size=32.75;" value="" vertex="1">
           <mxGeometry height="267.5" width="105" x="1102.5" y="606.25" as="geometry" />
         </mxCell>
-        <mxCell id="elasticsearch" parent="1" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#F3F4F6;strokeColor=#9CA3AF;dashed=1;fontStyle=1;fontSize=15;fontColor=#6B7280;rounded=0;" value="Elasticsearch&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;planned / currently not actively used&lt;br&gt;поиск в перспективе&lt;/font&gt;&lt;br&gt;&lt;br&gt;" vertex="1">
-          <mxGeometry height="140" width="245" x="1370" y="560" as="geometry" />
-        </mxCell>
         <mxCell id="note-worker" parent="1" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#FFFBEB;strokeColor=#F59E0B;fontSize=12;fontColor=#92400E;rounded=0;" value="Примечание: Worker читает&amp;nbsp;&lt;div&gt;Kafka events и делегирует&lt;br&gt;полный вызов LLM через&lt;/div&gt;&lt;div&gt;абстракции Spring AI.&lt;br&gt;&lt;br&gt;&lt;/div&gt;" vertex="1">
-          <mxGeometry height="110" width="210" x="1310" y="965" as="geometry" />
+          <mxGeometry height="110" width="210" x="785.22" y="1000" as="geometry" />
         </mxCell>
         <mxCell id="edge-student-frontend" edge="1" parent="1" source="actor-student" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#334155;entryX=0;entryY=0;entryDx=0;entryDy=0;" target="frontend" value="браузер">
           <mxGeometry relative="1" as="geometry" />
@@ -79,9 +76,11 @@
         <mxCell id="edge-core-postgres" edge="1" parent="1" source="core" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#57534E;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="AUAoAQ6nXC_tbAFNix50-3" value="JPA / Flyway">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge-kafka-core" edge="1" parent="1" source="kafka" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;" target="core" value="consume task-generation-responses">
-          <mxGeometry relative="1" x="-0.4545" as="geometry">
+        <mxCell id="edge-kafka-core" edge="1" parent="1" source="kafka" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;exitX=0.252;exitY=0.015;exitDx=0;exitDy=0;exitPerimeter=0;" value="consume task-generation-responses">
+          <mxGeometry relative="1" x="-0.3503" y="-23" as="geometry">
             <mxPoint as="offset" />
+            <mxPoint x="1127.47" y="604.25" as="sourcePoint" />
+            <mxPoint x="1127.47" y="508" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="edge-worker-llm" edge="1" parent="1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#9333EA;" value="prompt / model request">
@@ -99,9 +98,6 @@
         <mxCell id="edge-core-frontend" edge="1" parent="1" source="core" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#D97706;" target="frontend" value="REST status + SSE stream">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge-core-elastic" edge="1" parent="1" source="core" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#9CA3AF;dashed=1;dashPattern=4 4;" target="elasticsearch" value="planned search integration">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="legend" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontSize=13;fontColor=#334155;align=left;spacing=12;" value="Сплошные стрелки: синхронные REST/OIDC вызовы&lt;br&gt;Пунктирные стрелки: асинхронные Kafka-события" vertex="1">
           <mxGeometry height="80" width="300" x="380" y="1170" as="geometry" />
         </mxCell>
@@ -109,13 +105,13 @@
           <mxGeometry height="138" width="58" x="97.5" y="340" as="geometry" />
         </mxCell>
         <mxCell id="AUAoAQ6nXC_tbAFNix50-3" parent="1" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#E7E5E4;strokeColor=#57534E;fontStyle=1;fontSize=15;fontColor=#0F172A;rounded=0;" value="PostgreSQL&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;users, tasks, topics,&lt;br&gt;test cases, generation requests&lt;/font&gt;&lt;br&gt;&lt;br&gt;" vertex="1">
-          <mxGeometry height="140" width="230" x="1370" y="192.5" as="geometry" />
+          <mxGeometry height="140" width="230" x="1410" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="oX7LPB521yNxum3hbkCL-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=16;rotation=90;" value="&lt;span style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-size: 15px; font-weight: 700;&quot;&gt;Kafka&lt;/span&gt;&lt;br style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-size: 15px; font-weight: 700;&quot;&gt;&lt;font style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-weight: 700; font-size: 12px;&quot;&gt;task-generation-requests&lt;br&gt;task-generation-responses&lt;br&gt;DLT topics&lt;/font&gt;" vertex="1">
+        <mxCell id="oX7LPB521yNxum3hbkCL-2" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=16;rotation=90;" value="&lt;span style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-size: 15px; font-weight: 700;&quot;&gt;Kafka&lt;/span&gt;&lt;br style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-size: 15px; font-weight: 700;&quot;&gt;&lt;font style=&quot;caret-color: rgb(15, 23, 42); color: rgb(15, 23, 42); font-weight: 700; font-size: 12px;&quot;&gt;requests&lt;br&gt;responses&lt;br&gt;DLT topics&lt;/font&gt;" vertex="1">
           <mxGeometry height="50" width="160" x="1080" y="740" as="geometry" />
         </mxCell>
         <mxCell id="oX7LPB521yNxum3hbkCL-3" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Qwen_logo.svg/1280px-Qwen_logo.svg.png;" value="" vertex="1">
-          <mxGeometry height="40" width="40" x="1030" y="1215" as="geometry" />
+          <mxGeometry height="40" width="40" x="1107.8" y="1215" as="geometry" />
         </mxCell>
         <mxCell id="oX7LPB521yNxum3hbkCL-5" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Spring_Boot.svg/1280px-Spring_Boot.svg.png;" value="" vertex="1">
           <mxGeometry height="30" width="30" x="1050" y="1040" as="geometry" />
@@ -147,26 +143,116 @@
         <mxCell id="imXQlcJtzugSicYSIhdf-6" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/logos/springsecurity-58yps8puw8p6754jhvh64q.png/springsecurity-05rvui8yurfiaiaj1i3w18m.png?_a=DATAiZAAZAA0;" value="" vertex="1">
           <mxGeometry height="30" width="30" x="1080" y="478" as="geometry" />
         </mxCell>
-        <mxCell id="edge-core-kafka-request" edge="1" parent="1" source="core" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;" target="kafka" value="publish request event">
-          <mxGeometry relative="1" x="-0.3766" as="geometry">
+        <mxCell id="edge-core-kafka-request" edge="1" parent="1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;entryX=0.703;entryY=0.013;entryDx=0;entryDy=0;entryPerimeter=0;" target="kafka" value="publish request event">
+          <mxGeometry relative="1" x="-0.4007" y="-26" as="geometry">
             <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="edge-kafka-worker" edge="1" parent="1" source="kafka" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;" target="worker" value="consume task-generation-requests">
-          <mxGeometry relative="1" x="0.305" y="2" as="geometry">
-            <mxPoint as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="edge-worker-kafka" edge="1" parent="1" source="worker" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;" target="kafka" value="publish response event">
-          <mxGeometry relative="1" x="0.3904" y="-2" as="geometry">
-            <mxPoint as="offset" />
+            <mxPoint x="1175.87" y="510" as="sourcePoint" />
+            <mxPoint x="1179" y="611" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="imXQlcJtzugSicYSIhdf-8" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Apache_Kafka_logo.svg/1280px-Apache_Kafka_logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail;" value="" vertex="1">
           <mxGeometry height="53.75" width="33.07" x="1142.8" y="611.25" as="geometry" />
         </mxCell>
         <mxCell id="imXQlcJtzugSicYSIhdf-9" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Postgresql_elephant.svg/1280px-Postgresql_elephant.svg.png;" value="" vertex="1">
-          <mxGeometry height="40" width="38.77" x="1380" y="242.5" as="geometry" />
+          <mxGeometry height="40" width="38.77" x="1418.77" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFDF5;strokeColor=#059669;fontStyle=1;fontSize=16;fontColor=#0F172A;" value="Edutask Judge Worker&lt;br&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;Spring Boot Kafka Worker&lt;br&gt;обработка заявок генерации&lt;/font&gt;&lt;div&gt;&lt;br/&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="115" width="230" x="1457.54" y="468.31" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-3" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;exitX=-0.008;exitY=0.309;exitDx=0;exitDy=0;entryX=1.006;entryY=0.393;entryDx=0;entryDy=0;entryPerimeter=0;exitPerimeter=0;" target="kafka" value="publish response event">
+          <mxGeometry relative="1" x="0.2434" y="-2" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1312" y="783" as="sourcePoint" />
+            <mxPoint x="1310" y="697" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-4" edge="1" parent="1" source="kafka" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;entryX=-0.003;entryY=0.574;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;entryPerimeter=0;" target="U58eAkt5Y5IepjXZmVTU-1" value="publish request event">
+          <mxGeometry relative="1" x="0.3471" y="-4" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1280" y="717" as="sourcePoint" />
+            <mxPoint x="1280" y="813" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-kafka-worker" edge="1" parent="1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;exitX=0.367;exitY=0.987;exitDx=0;exitDy=0;exitPerimeter=0;" value="consume task-generation-requests">
+          <mxGeometry relative="1" x="0.3123" y="19" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1131.0349999999999" y="870.2725" as="sourcePoint" />
+            <mxPoint x="1130" y="960" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-worker-kafka" edge="1" parent="1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#E11D48;dashed=1;dashPattern=8 4;entryX=0.716;entryY=0.985;entryDx=0;entryDy=0;entryPerimeter=0;" target="kafka" value="publish response event">
+          <mxGeometry relative="1" x="0.3981" y="16" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1177.4239639639638" y="960" as="sourcePoint" />
+            <mxPoint x="1175.8699099099101" y="873.75" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-5" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/Spring_Boot.svg/1280px-Spring_Boot.svg.png;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="1460" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-6" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F9FAFB;strokeColor=#6B7280;dashed=1;dashPattern=6 4;fontStyle=1;fontSize=15;fontColor=#374151;align=center;verticalAlign=top;spacingTop=10;" value="Judge0 Runtime" vertex="1">
+          <mxGeometry height="360" width="310" x="1450" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F3F4F6;strokeColor=#374151;fontStyle=1;fontSize=15;fontColor=#0F172A;" value="Judge0 Server&amp;nbsp;&lt;div&gt;REST API&amp;nbsp;&lt;/div&gt;&lt;div&gt;/submissions, polling&lt;/div&gt;" vertex="1">
+          <mxGeometry height="100" width="210" x="1500" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-8" parent="1" style="rounded=0;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F3F4F6;strokeColor=#374151;fontStyle=1;fontSize=15;fontColor=#0F172A;" value="Judge0 Worker&amp;nbsp;&lt;div&gt;&amp;nbsp;Запуск кода&amp;nbsp;&lt;/div&gt;&lt;div&gt;CPU / memory limits&lt;/div&gt;" vertex="1">
+          <mxGeometry height="100" width="210" x="1500" y="840" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-9" parent="1" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#E7E5E4;strokeColor=#57534E;fontStyle=1;fontSize=13;fontColor=#0F172A;rounded=0;" value="Judge0 PostgreSQL&lt;div&gt;Служебные данные&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="140" x="1440" y="1030" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-10" parent="1" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontStyle=1;fontSize=13;fontColor=#0F172A;rounded=0;" value="Judge0 Redis&lt;div&gt;Очереди / Кэш&lt;/div&gt;" vertex="1">
+          <mxGeometry height="110" width="140" x="1620" y="1030" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-11" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-7" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#6B7280;exitX=0;exitY=0.5;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;entryX=0.293;entryY=0.017;entryDx=0;entryDy=0;entryPerimeter=0;" target="U58eAkt5Y5IepjXZmVTU-9" value="DB">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1480" y="740" />
+              <mxPoint x="1480" y="950" />
+              <mxPoint x="1481" y="1032" />
+            </Array>
+            <mxPoint x="1482" y="750" as="sourcePoint" />
+            <mxPoint x="1469" y="1030" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-12" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-7" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#6B7280;exitX=1;exitY=0.5;exitDx=0;exitDy=0;edgeStyle=orthogonalEdgeStyle;entryX=0.789;entryY=0.049;entryDx=0;entryDy=0;entryPerimeter=0;" target="U58eAkt5Y5IepjXZmVTU-10" value="Redis">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1730" y="740" />
+            </Array>
+            <mxPoint x="1710" y="820" as="sourcePoint" />
+            <mxPoint x="1755" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-13" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-8" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#6B7280;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.268;entryY=0.017;entryDx=0;entryDy=0;entryPerimeter=0;" target="U58eAkt5Y5IepjXZmVTU-10" value="queue/status">
+          <mxGeometry relative="1" x="-0.1292" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1640" y="950" as="sourcePoint" />
+            <mxPoint x="1668" y="1020" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-14" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-7" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#6B7280;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="U58eAkt5Y5IepjXZmVTU-8" value="execution jobs">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1680" y="750" as="sourcePoint" />
+            <mxPoint x="1680" y="780" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-15" edge="1" parent="1" source="U58eAkt5Y5IepjXZmVTU-1" style="endArrow=block;html=1;rounded=0;strokeWidth=2;fontSize=12;strokeColor=#059669;entryX=0.117;entryY=0.019;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.289;exitY=0.998;exitDx=0;exitDy=0;exitPerimeter=0;" target="U58eAkt5Y5IepjXZmVTU-7" value="REST create submission / poll result">
+          <mxGeometry relative="1" x="-0.1711" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1580" y="596" as="sourcePoint" />
+            <mxPoint x="1640" y="599" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-16" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://msk.avenue.school/wp-content/uploads/2021/07/4spring_webflux_logo.png;" value="" vertex="1">
+          <mxGeometry height="40" width="40" x="1490" y="543.31" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-17" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Ollama-logo.svg/1920px-Ollama-logo.svg.png;" value="" vertex="1">
+          <mxGeometry height="40" width="27.24" x="1030" y="1215" as="geometry" />
+        </mxCell>
+        <mxCell id="U58eAkt5Y5IepjXZmVTU-18" parent="1" style="shape=image;imageAspect=0;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;image=https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/ChatGPT-Logo.svg/1280px-ChatGPT-Logo.svg.png;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="1072.5" y="1220" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
