@@ -103,6 +103,3 @@ jobs:
         with:
           context: ./edutask-frontend
           push: false
-          # TODO Убрать после добавления авторизации
-          build-args: |
-            VITE_DEV_AUTHOR_ID=11111111-1111-1111-1111-111111111111
