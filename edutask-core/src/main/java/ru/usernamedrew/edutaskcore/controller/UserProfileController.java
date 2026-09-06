@@ -20,7 +20,10 @@ import ru.usernamedrew.edutaskcore.service.UserProfileService;
 public class UserProfileController {
     private final UserProfileService userProfileService;
 
-    @Operation(summary = "Получить текущий профиль", description = "Возвращает локальный профиль для текущего пользователя Keycloak.")
+    @Operation(
+        summary = "Получить текущий профиль",
+        description = "Возвращает локальный профиль для текущего пользователя Keycloak."
+    )
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public UserProfileResponse getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
