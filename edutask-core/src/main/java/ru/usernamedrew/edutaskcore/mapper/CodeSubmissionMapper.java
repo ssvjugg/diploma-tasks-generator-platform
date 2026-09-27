@@ -9,6 +9,7 @@ import ru.usernamedrew.edutaskcore.entity.SubmissionTestResult;
 import java.util.Comparator;
 import java.util.List;
 
+// TODO Переписать используя MapStruct
 @Component
 public class CodeSubmissionMapper {
     public CodeSubmissionResponse toResponse(Submission submission, boolean includeSourceCode) {
