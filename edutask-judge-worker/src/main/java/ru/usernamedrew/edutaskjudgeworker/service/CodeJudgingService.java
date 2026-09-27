@@ -36,6 +36,9 @@ public class CodeJudgingService {
     private final JudgeWorkerProperties workerProperties;
 
     public CodeSubmissionResultEvent judge(CodeSubmissionRequestedEvent event) {
+        if (event.testCases() == null || event.testCases().isEmpty()) {
+            return failedResponse(event, "No test cases provided");
+        }
         try {
             int languageId = languageMapper.resolveLanguageId(event.language());
             List<PendingJudgeSubmission> pendingSubmissions = createJudge0Submissions(event, languageId);
@@ -49,6 +52,8 @@ public class CodeJudgingService {
     }
 
     public CodeSubmissionResultEvent failedResponse(CodeSubmissionRequestedEvent event, String errorMessage) {
+        int totalCount = totalCount(event.testCases());
+        int maxScore = maxScore(event.testCases());
         return new CodeSubmissionResultEvent(
             UUID.randomUUID(),
             event.submissionId(),
@@ -57,9 +62,9 @@ public class CodeJudgingService {
             JudgeSubmissionStatus.FAILED,
             List.of(),
             0,
-            event.testCases() == null ? 0 : event.testCases().size(),
+            totalCount,
             0,
-            event.testCases() == null ? 0 : sumMaxScore(event.testCases()),
+            maxScore,
             errorMessage == null || errorMessage.isBlank() ? "Code judging failed" : errorMessage,
             OffsetDateTime.now(),
             workerProperties.getSchemaVersion()
@@ -110,12 +115,13 @@ public class CodeJudgingService {
         CodeSubmissionRequestedEvent event,
         List<JudgeTestCaseResult> testResults
     ) {
+        List<JudgeTestCasePayload> testCases = event.testCases();
         JudgeSubmissionStatus status = aggregateStatus(testResults);
         int passedCount = (int) testResults.stream()
             .filter(result -> result.status() == JudgeSubmissionStatus.ACCEPTED)
             .count();
-        int maxScore = sumMaxScore(event.testCases());
-        Map<Integer, Integer> pointsByIndex = event.testCases().stream()
+        int maxScore = maxScore(testCases);
+        Map<Integer, Integer> pointsByIndex = testCases.stream()
             .collect(Collectors.toMap(JudgeTestCasePayload::index, JudgeTestCasePayload::points));
         int score = testResults.stream()
             .filter(result -> result.status() == JudgeSubmissionStatus.ACCEPTED)
@@ -130,7 +136,7 @@ public class CodeJudgingService {
             status,
             testResults,
             passedCount,
-            event.testCases().size(),
+            totalCount(testCases),
             score,
             maxScore,
             status == JudgeSubmissionStatus.FAILED ? "Code judging failed" : null,
@@ -259,7 +265,14 @@ public class CodeJudgingService {
         }
     }
 
-    private int sumMaxScore(List<JudgeTestCasePayload> testCases) {
+    private int totalCount(List<JudgeTestCasePayload> testCases) {
+        return testCases == null ? 0 : testCases.size();
+    }
+
+    private int maxScore(List<JudgeTestCasePayload> testCases) {
+        if (testCases == null) {
+            return 0;
+        }
         return testCases.stream()
             .mapToInt(JudgeTestCasePayload::points)
             .sum();
