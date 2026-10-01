@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.usernamedrew.edutaskcore.entity.UserProfile;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class UserProfileRepositoryTest extends BaseRepositoryTest {
 
@@ -12,13 +12,30 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
     UserProfileRepository userProfileRepository;
 
     @Test
-    void saveUserProfile() {
+    void havingUserProfile_whenSave_thenSuccessfullyFindById() {
         UserProfile userProfile = new UserProfile();
         userProfile.setKeycloakId("id");
         userProfile.setRole(UserProfile.UserRole.STUDENT);
 
-        UserProfile saved = userProfileRepository.save(userProfile);
+        userProfileRepository.save(userProfile);
 
-        assertThat(saved.getKeycloakId()).isEqualTo("id");
+        UserProfile found = userProfileRepository.findById(userProfile.getId()).get();
+
+        assertEquals("id", found.getKeycloakId());
+        assertEquals(UserProfile.UserRole.STUDENT, found.getRole());
+    }
+
+    @Test
+    void havingUserProfile_whenSave_thenSuccessfullyFindByKeycloakId() {
+        UserProfile userProfile = new UserProfile();
+        userProfile.setKeycloakId("keycloakId");
+        userProfile.setRole(UserProfile.UserRole.ADMIN);
+
+        userProfileRepository.save(userProfile);
+
+        UserProfile found = userProfileRepository.findByKeycloakId("keycloakId").get();
+
+        assertEquals("keycloakId", found.getKeycloakId());
+        assertEquals(UserProfile.UserRole.ADMIN, found.getRole());
     }
 }

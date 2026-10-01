@@ -13,6 +13,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 public abstract class BaseRepositoryTest {
 
     @Container
-    @ServiceConnection
+    @ServiceConnection // Вместо DynamicPropertySource
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine");
 }
