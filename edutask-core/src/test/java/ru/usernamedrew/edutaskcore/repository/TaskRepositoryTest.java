@@ -25,14 +25,14 @@ public class TaskRepositoryTest extends BaseRepositoryTest {
         UserProfile userProfile = new UserProfile();
         userProfile.setKeycloakId("id");
         userProfile.setRole(UserProfile.UserRole.STUDENT);
-        userProfileRepository.save(userProfile);
+        userProfileRepository.saveAndFlush(userProfile);
 
         Topic topic1 = new Topic();
         topic1.setName("topic1");
         Topic topic2 = new Topic();
         topic2.setName("topic2");
-        topicRepository.save(topic1);
-        topicRepository.save(topic2);
+        topicRepository.saveAndFlush(topic1);
+        topicRepository.saveAndFlush(topic2);
 
         Task task = new Task();
         task.setTitle("title");
@@ -43,7 +43,7 @@ public class TaskRepositoryTest extends BaseRepositoryTest {
         task.setAuthor(userProfile);
         task.setTopics(Set.of(topic1, topic2));
 
-        taskRepository.save(task);
+        taskRepository.saveAndFlush(task);
 
         Task found = taskRepository.findDetailedById(task.getId()).get();
 

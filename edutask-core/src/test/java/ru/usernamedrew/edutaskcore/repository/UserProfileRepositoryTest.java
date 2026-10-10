@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 public class UserProfileRepositoryTest extends BaseRepositoryTest {
 
     @Autowired
-    UserProfileRepository userProfileRepository;
+    private UserProfileRepository userProfileRepository;
 
     @Test
     void havingUserProfile_whenSave_thenSuccessfullyFindById() {
@@ -18,6 +18,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
         userProfile.setRole(UserProfile.UserRole.STUDENT);
 
         userProfileRepository.save(userProfile);
+        userProfileRepository.flush();
 
         UserProfile found = userProfileRepository.findById(userProfile.getId()).get();
 
@@ -32,6 +33,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
         userProfile.setRole(UserProfile.UserRole.ADMIN);
 
         userProfileRepository.save(userProfile);
+        userProfileRepository.flush();
 
         UserProfile found = userProfileRepository.findByKeycloakId("keycloakId").get();
 
