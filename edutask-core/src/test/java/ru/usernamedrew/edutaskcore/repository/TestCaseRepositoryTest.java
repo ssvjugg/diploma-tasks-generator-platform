@@ -65,5 +65,6 @@ public class TestCaseRepositoryTest extends BaseRepositoryTest {
         List<TestCase> testCases = testCaseRepository.findByTaskIdAndHiddenFalseOrderByCreatedAtAscIdAsc(task.getId());
 
         assertEquals(1, testCases.size());
+        assertEquals("input1", testCases.get(0).getInputData());
     }
 }
