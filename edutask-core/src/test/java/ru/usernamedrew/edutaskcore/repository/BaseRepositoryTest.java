@@ -1,5 +1,7 @@
 package ru.usernamedrew.edutaskcore.repository;
 
+import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -15,6 +17,9 @@ public abstract class BaseRepositoryTest {
     static {
         postgres.start();
     }
+
+    @Autowired
+    protected EntityManager entityManager;
 
     @DynamicPropertySource
     static void postgresProperties(DynamicPropertyRegistry registry) {

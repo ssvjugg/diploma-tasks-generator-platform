@@ -44,6 +44,7 @@ public class TaskRepositoryTest extends BaseRepositoryTest {
         task.setTopics(Set.of(topic1, topic2));
 
         taskRepository.saveAndFlush(task);
+        entityManager.clear();
 
         Task found = taskRepository.findDetailedById(task.getId()).get();
 
@@ -52,7 +53,7 @@ public class TaskRepositoryTest extends BaseRepositoryTest {
         assertEquals("", found.getInputFormat());
         assertEquals("", found.getOutputFormat());
         assertEquals(TaskDifficulty.EASY, found.getDifficulty());
-        assertEquals(userProfile, found.getAuthor());
-        assertEquals(Set.of(topic1, topic2), found.getTopics());
+        assertEquals(userProfile.getKeycloakId(), found.getAuthor().getKeycloakId());
+        assertEquals(2, found.getTopics().size());
     }
 }

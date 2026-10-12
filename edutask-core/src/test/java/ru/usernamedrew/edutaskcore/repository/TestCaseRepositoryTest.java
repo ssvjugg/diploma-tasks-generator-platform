@@ -51,6 +51,8 @@ public class TestCaseRepositoryTest extends BaseRepositoryTest {
 
         testCaseRepository.saveAndFlush(testCase1);
         testCaseRepository.saveAndFlush(testCase2);
+
+        entityManager.clear();
     }
 
     @Test

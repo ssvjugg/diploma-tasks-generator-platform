@@ -19,6 +19,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
 
         userProfileRepository.save(userProfile);
         userProfileRepository.flush();
+        entityManager.clear();
 
         UserProfile found = userProfileRepository.findById(userProfile.getId()).get();
 
@@ -34,6 +35,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
 
         userProfileRepository.save(userProfile);
         userProfileRepository.flush();
+        entityManager.clear();
 
         UserProfile found = userProfileRepository.findByKeycloakId("keycloakId").get();
 
