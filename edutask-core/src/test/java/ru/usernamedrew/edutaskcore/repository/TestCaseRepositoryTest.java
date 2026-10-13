@@ -16,10 +16,6 @@ public class TestCaseRepositoryTest extends BaseRepositoryTest {
 
     @Autowired
     private TestCaseRepository testCaseRepository;
-    @Autowired
-    private TaskRepository taskRepository;
-    @Autowired
-    private UserProfileRepository userProfileRepository;
 
     private Task task;
 
@@ -28,7 +24,7 @@ public class TestCaseRepositoryTest extends BaseRepositoryTest {
         UserProfile userProfile = new UserProfile();
         userProfile.setKeycloakId("id");
         userProfile.setRole(UserProfile.UserRole.STUDENT);
-        userProfileRepository.saveAndFlush(userProfile);
+        entityManager.persist(userProfile);
 
         task = new Task();
         task.setTitle("title");
@@ -37,33 +33,33 @@ public class TestCaseRepositoryTest extends BaseRepositoryTest {
         task.setOutputFormat("");
         task.setDifficulty(TaskDifficulty.EASY);
         task.setAuthor(userProfile);
-        taskRepository.saveAndFlush(task);
+        entityManager.persist(task);
 
         TestCase testCase1 = new TestCase();
         testCase1.setTask(task);
         testCase1.setInputData("input1");
         testCase1.setExpectedOutput("output1");
         TestCase testCase2 = new TestCase();
+        entityManager.persist(testCase1);
+
         testCase2.setTask(task);
         testCase2.setInputData("input2");
         testCase2.setExpectedOutput("output2");
         testCase2.setHidden(true);
+        entityManager.persist(testCase2);
 
-        testCaseRepository.saveAndFlush(testCase1);
-        testCaseRepository.saveAndFlush(testCase2);
-
-        entityManager.clear();
+        entityManager.flush();
     }
 
     @Test
-    void havingTestCases_whenSave_thenSuccessfullyFindByTaskIdOrderByCreatedAtAscIdAsc() {
+    void havingTestCases_whenFindByTaskIdOrderByCreatedAtAscIdAsc_thenReturnCorrectTestCases() {
         List<TestCase> testCases = testCaseRepository.findByTaskIdOrderByCreatedAtAscIdAsc(task.getId());
 
         assertEquals(2, testCases.size());
     }
 
     @Test
-    void havingTestCases_whenSave_thenSuccessfullyFindByTaskIdAndHiddenFalseOrderByCreatedAtAscIdAsc() {
+    void havingTestCases_whenFindByTaskIdAndHiddenFalseOrderByCreatedAtAscIdAsc_thenReturnCorrectTestCases() {
         List<TestCase> testCases = testCaseRepository.findByTaskIdAndHiddenFalseOrderByCreatedAtAscIdAsc(task.getId());
 
         assertEquals(1, testCases.size());

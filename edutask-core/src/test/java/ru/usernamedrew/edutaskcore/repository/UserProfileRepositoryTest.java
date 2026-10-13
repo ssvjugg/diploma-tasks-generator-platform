@@ -18,7 +18,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
         userProfile.setRole(UserProfile.UserRole.STUDENT);
 
         userProfileRepository.save(userProfile);
-        userProfileRepository.flush();
+        entityManager.flush();
         entityManager.clear();
 
         UserProfile found = userProfileRepository.findById(userProfile.getId()).get();
@@ -34,7 +34,7 @@ public class UserProfileRepositoryTest extends BaseRepositoryTest {
         userProfile.setRole(UserProfile.UserRole.ADMIN);
 
         userProfileRepository.save(userProfile);
-        userProfileRepository.flush();
+        entityManager.flush();
         entityManager.clear();
 
         UserProfile found = userProfileRepository.findByKeycloakId("keycloakId").get();
