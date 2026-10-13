@@ -67,6 +67,7 @@ public class TaskRepositoryTest extends BaseRepositoryTest {
         entityManager.persist(task2);
 
         entityManager.flush();
+        entityManager.clear();
     }
 
     @Test

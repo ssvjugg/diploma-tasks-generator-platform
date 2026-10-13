@@ -59,10 +59,10 @@ public class SubmissionRepositoryTest extends BaseRepositoryTest {
         assertEquals("title", found.getTask().getTitle());
         assertEquals("statement", found.getTask().getStatement());
         assertEquals("Golang", found.getLanguage().getName());
-        assertEquals(0, submission.getScore());
-        assertEquals(0, submission.getMaxScore());
-        assertEquals(0, submission.getPassedTests());
-        assertEquals(0, submission.getTotalTests());
-        assertNull(submission.getErrorMessage());
+        assertEquals(0, found.getScore());
+        assertEquals(0, found.getMaxScore());
+        assertEquals(0, found.getPassedTests());
+        assertEquals(0, found.getTotalTests());
+        assertNull(found.getErrorMessage());
     }
 }
